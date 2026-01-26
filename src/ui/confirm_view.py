@@ -1,13 +1,18 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QMessageBox
 from PySide6.QtCore import Qt, Signal
 from ui.ui_config import AppConfig
-
+from database.connector import DatabaseHandler  
 class ConfirmView(QWidget):
-    confirm_clicked = Signal()
+    payment_success = Signal(dict) 
     cancel_clicked = Signal()
 
     def __init__(self):
         super().__init__()
+        self.db = DatabaseHandler()
+        
+        self.current_user_id = None
+        self.payment_amount = 0.0
+
         self.init_ui()
 
     def init_ui(self):
@@ -52,17 +57,19 @@ class ConfirmView(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(20)
 
-        btn_ok = QPushButton("OK")
-        btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_ok.setStyleSheet(f"background-color: {AppConfig.COLOR_BTN_GREEN}; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
-        btn_ok.clicked.connect(self.confirm_clicked.emit)
+        self.btn_ok = QPushButton("CONFIRM PAY") # เปลี่ยนชื่อปุ่มให้สื่อความหมาย
+        self.btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_ok.setStyleSheet(f"background-color: {AppConfig.COLOR_BTN_GREEN}; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
+        
+        # 3. แก้ event click ให้ไปเรียกฟังก์ชันตัดเงิน (on_confirm_process) แทนการ emit ตรงๆ
+        self.btn_ok.clicked.connect(self.on_confirm_process)
 
         btn_cancel = QPushButton("CANCEL")
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_cancel.setStyleSheet(f"background-color: {AppConfig.COLOR_BTN_RED}; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
         btn_cancel.clicked.connect(self.cancel_clicked.emit)
 
-        btn_layout.addWidget(btn_ok)
+        btn_layout.addWidget(self.btn_ok)
         btn_layout.addWidget(btn_cancel)
 
         main_layout.addWidget(self.lbl_name)
@@ -74,7 +81,35 @@ class ConfirmView(QWidget):
 
         self.setLayout(main_layout)
 
-    def set_user_data(self, name, balance, amount):
+    def set_user_data(self, user_id, name, balance, amount): 
+        self.current_user_id = user_id 
+        self.payment_amount = amount   
+        
         self.lbl_name.setText(name)
         self.lbl_total.setText(f"{balance:,.2f}")
         self.lbl_pay.setText(f"{amount:,.2f}")
+
+    def on_confirm_process(self):
+        if not self.current_user_id:
+            return
+
+        self.btn_ok.setEnabled(False)
+        self.btn_ok.setText("Processing...")
+        
+        print(f"💰 Processing Payment for {self.lbl_name.text()} : {self.payment_amount} THB")
+
+        success, result = self.db.process_payment(
+            user_id=self.current_user_id, 
+            amount=self.payment_amount,
+            items="Food Court Payment" 
+        )
+
+        if success:
+            print("✅ Payment Success!")
+            self.payment_success.emit(result)
+        else:
+            print(f"❌ Payment Failed: {result}")
+            QMessageBox.critical(self, "Payment Error", f"ทำรายการไม่สำเร็จ: {result}")
+            
+        self.btn_ok.setEnabled(True)
+        self.btn_ok.setText("CONFIRM PAY")

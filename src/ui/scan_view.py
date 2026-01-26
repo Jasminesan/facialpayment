@@ -2,11 +2,13 @@ import numpy as np
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal, QTimer, QRectF, Slot
 from PySide6.QtGui import QPainter, QPen, QColor, QImage, QPainterPath, QBrush, QPixmap
+
 from ui.ui_config import AppConfig
-from services.camera import CameraService
 from database.connector import DatabaseHandler
+from services.face_matcher import FaceMatcher 
 
 class LoadingWidget(QWidget):
+    """Widget วงกลมหมุนๆ (เหมือนเดิม)"""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.angle = 0
@@ -64,21 +66,20 @@ class LoadingWidget(QWidget):
         painter.setPen(pen)
         painter.drawArc(rect.toRect(), -self.angle * 16, -100 * 16)
 
-# --- ScanView (เพิ่ม Logic Timeout) ---
 class ScanView(QWidget):
     scanned_success = Signal(dict)
     scanned_fail = Signal()
 
-    def __init__(self):
+    def __init__(self, camera_service):
         super().__init__()
         self.db = DatabaseHandler()
-        self.camera = None
-        
-        # ✅ เพิ่ม Timer สำหรับ Timeout
-        self.timeout_timer = QTimer()
-        self.timeout_timer.setSingleShot(True) # ทำงานครั้งเดียวแล้วหยุด
-        self.timeout_timer.timeout.connect(self.on_scan_timeout) # ถ้าเวลาหมดให้เรียกฟังก์ชันนี้
+        self.matcher = FaceMatcher(self.db) 
+        self.camera = camera_service 
+        self.is_scanning = False 
 
+        self.timeout_timer = QTimer()
+        self.timeout_timer.setSingleShot(True) 
+        self.timeout_timer.timeout.connect(self.on_scan_timeout) 
         self.init_ui()
 
     def init_ui(self):
@@ -86,64 +87,97 @@ class ScanView(QWidget):
         
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.setSpacing(30)
+        layout.setSpacing(15) # ลดช่องว่างลงหน่อย
 
-        self.lbl_status = QLabel("Scanning...")
-        self.lbl_status.setStyleSheet("font-size: 28px; font-weight: bold; color: #333333; background-color: transparent;")
+        # 1. ข้อความสถานะหลัก
+        self.lbl_status = QLabel("Waiting...")
+        self.lbl_status.setStyleSheet("font-size: 28px; font-weight: bold; color: #333333;")
 
+        # 2. วงกลมกล้อง
         self.loading_circle = LoadingWidget()
+
+        # 3. ✅ [เพิ่มใหม่] ข้อความแนะนำ (Hint) ตัวสีแดงๆ ส้มๆ
+        self.lbl_hint = QLabel("") 
+        self.lbl_hint.setStyleSheet("font-size: 22px; font-weight: bold; color: #FF5722;")
+        self.lbl_hint.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout.addWidget(self.lbl_status, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.loading_circle, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.lbl_hint, alignment=Qt.AlignmentFlag.AlignCenter) # ใส่ไว้ใต้กล้อง
+        
         self.setLayout(layout)
+    
+    
 
     def start_scanning(self):
         self.lbl_status.setText("Scanning...")
+        self.lbl_hint.setText("Looking at camera...") # ข้อความเริ่มต้น
         self.loading_circle.start_anim()
-        
-        # เริ่มกล้อง
-        if self.camera: self.camera.stop()
-        self.camera = CameraService()
-        self.camera.frame_received.connect(self.update_video)
-        self.camera.face_detected.connect(self.check_face)
-        self.camera.start()
+        self.is_scanning = True 
 
-        # ✅ เริ่มจับเวลา Timeout (เช่น 15 วินาที = 15000 ms)
+        try:
+            try: self.camera.frame_received.disconnect(self.update_video)
+            except: pass
+            try: self.camera.face_detected.disconnect(self.check_face)
+            except: pass
+
+            self.camera.frame_received.connect(self.update_video)
+            self.camera.face_detected.connect(self.check_face)
+        except Exception as e:
+            print(f"Connection Error: {e}")
+
         self.timeout_timer.start(15000)
 
     def stop_scanning(self):
-        # ✅ หยุด Timer ด้วย เพื่อกันไม่ให้มันทำงานซ้อน
+        self.is_scanning = False 
         self.timeout_timer.stop()
+        if hasattr(self, 'loading_circle'):
+            self.loading_circle.stop_anim()
+            
+        self.lbl_hint.setText("") # เคลียร์ข้อความเมื่อหยุด
 
-        if self.camera:
-            self.camera.stop()
-            self.camera.wait()
-            self.camera = None
-        self.loading_circle.stop_anim()
+        try:
+            self.camera.frame_received.disconnect(self.update_video)
+        except: pass 
+        try:
+            self.camera.face_detected.disconnect(self.check_face)
+        except: pass
 
     def on_scan_timeout(self):
-        """เมื่อหมดเวลาแล้วยังไม่เจอหน้า"""
-        print("⏰ Scan Timeout! No face found.")
+        if not self.is_scanning: return
         self.stop_scanning()
-        # ส่งสัญญาณ Fail เพื่อให้ Main Window เปลี่ยนไปหน้า No Result
         self.scanned_fail.emit()
 
     @Slot(QImage)
     def update_video(self, image):
-        self.loading_circle.set_frame(image)
+        if not self.is_scanning: return
+        if hasattr(self, 'loading_circle'):
+            self.loading_circle.set_frame(image)
 
     @Slot(list)
     def check_face(self, vector):
-        self.lbl_status.setText("Checking Database...")
-        
-        result = self.db.get_user_by_face(vector)
-        
-        if result and result['found']:
-            self.stop_scanning()
-            self.scanned_success.emit(result)
-        else:
-            pass 
+        if not self.is_scanning: return
 
-    def hideEvent(self, event):
-        self.stop_scanning()
-        super().hideEvent(event)
+        self.lbl_status.setText("Checking...")
+        
+        result = self.matcher.find_match(vector) 
+
+        if result:
+            score = result.get('similarity', 0)
+            print(f"Similarity: {score:.2f}")
+
+            if result['found']:
+                self.lbl_hint.setStyleSheet("color: green;")
+                self.lbl_hint.setText("Perfect! (หน้าชัดเจน)")
+                self.stop_scanning()
+                self.scanned_success.emit(result)
+            else:
+                self.lbl_hint.setStyleSheet("color: #FF5722;") # สีส้ม
+                if score > 0.35: 
+                    self.lbl_hint.setText("Move Closer (ขยับเข้ามาอีกนิด)")
+                elif score > 0.1:
+                    self.lbl_hint.setText("Come Closer (เข้ามาใกล้ๆ หน่อย)")
+                else:
+                    self.lbl_hint.setText("Face not clear (หน้าไม่ชัด)")
+        else:
+            self.lbl_hint.setText("No Match")
