@@ -43,7 +43,6 @@ class DatabaseHandler:
             print(f"❌ Fetch Users Error: {e}")
             return []
 
-    # ✅ ฟังก์ชันที่หายไป (เพิ่มกลับมาแล้ว)
     def get_user_by_id(self, user_id):
         """ดึงข้อมูล User ตาม ID"""
         if self.db is None: return None
@@ -55,6 +54,36 @@ class DatabaseHandler:
         except Exception as e:
             print(f"❌ Get User Error: {e}")
             return None
+        
+    # ==========================================
+    # ✅ ส่วนลงทะเบียน 
+    # ==========================================
+    def register_user(self, user_id, name, balance, face_vector):
+        if self.db is None: 
+            print("❌ Database not connected")
+            return False
+
+        try:
+            if hasattr(face_vector, 'tolist'):
+                vector_list = face_vector.tolist()
+            else:
+                vector_list = face_vector
+
+            user_data = {
+                "user_id": str(user_id),
+                "name": name,
+                "balance": float(balance),
+                "face_vector": vector_list, # เก็บ Vector ไว้เทียบหน้า
+                "is_active": True,
+                "created_at": firestore.SERVER_TIMESTAMP
+            }
+            
+            self.db.collection("users").document(str(user_id)).set(user_data)
+            print(f"✅ บันทึกข้อมูลสำเร็จ: {name} (ID: {user_id})")
+            return True
+        except Exception as e:
+            print(f"❌ Registration Error: {e}")
+            return False
 
     # ==========================================
     # 💰 Payment Section

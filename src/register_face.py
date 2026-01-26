@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QLabel,
 from PySide6.QtCore import Qt, Slot, QTimer
 from PySide6.QtGui import QImage, QPixmap
 
+# ตั้งค่า Path ให้หาไฟล์ในโปรเจกต์เจอ
 current_dir = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(os.path.join(current_dir, ".."))
 
@@ -16,9 +17,12 @@ class RegisterApp(QWidget):
         super().__init__()
         self.setWindowTitle("Register New User (OAK-D PoE)")
         self.setGeometry(100, 100, 500, 750) 
+        
         # Init Database & Camera
         self.db = DatabaseHandler()
-        self.camera = CameraService(send_interval=0.5) 
+        
+        # ✅ แก้ไข: เรียกใช้ CameraService แบบมาตรฐาน (เหมือนหน้า Main)
+        self.camera = CameraService() 
         
         self.current_vector = None
         self.is_capturing = True
@@ -43,7 +47,7 @@ class RegisterApp(QWidget):
         layout.addWidget(self.status_label)
 
         # 3. Input Fields
-        # 3.1 User ID (เพิ่มใหม่)
+        # 3.1 User ID
         self.id_input = QLineEdit()
         self.id_input.setPlaceholderText("Enter User ID (e.g. 101)")
         layout.addWidget(self.id_input)
@@ -58,7 +62,7 @@ class RegisterApp(QWidget):
         self.balance_input.setPlaceholderText("Initial Balance (e.g. 500.00)")
         layout.addWidget(self.balance_input)
 
-        # 3.4 PDPA Consent (เพิ่มใหม่)
+        # 3.4 PDPA Consent
         self.pdpa_checkbox = QCheckBox("I agree to PDPA Consent (ยินยอมให้เก็บข้อมูลใบหน้า)")
         self.pdpa_checkbox.setStyleSheet("font-size: 14px; margin-top: 10px;")
         layout.addWidget(self.pdpa_checkbox)
@@ -77,18 +81,24 @@ class RegisterApp(QWidget):
         self.setLayout(layout)
 
     def setup_camera(self):
-        self.camera.frame_received.connect(self.update_frame)
-        self.camera.face_detected.connect(self.update_vector)
-        self.camera.start()
+        # เชื่อมต่อ Signal จากกล้อง
+        try:
+            self.camera.frame_received.connect(self.update_frame)
+            self.camera.face_detected.connect(self.update_vector)
+            self.camera.start()
+            print("✅ Register Camera Started")
+        except Exception as e:
+            QMessageBox.critical(self, "Camera Error", f"Could not start camera: {e}")
 
     @Slot(QImage)
     def update_frame(self, image):
         if self.is_capturing:
             pixmap = QPixmap.fromImage(image)
+            # Scale ให้พอดีกับ Label
             self.video_label.setPixmap(pixmap.scaled(
-                self.video_label.width(), 
-                self.video_label.height(), 
-                Qt.KeepAspectRatio
+                self.video_label.size(), 
+                Qt.KeepAspectRatio,
+                Qt.SmoothTransformation
             ))
 
     @Slot(list)
@@ -99,7 +109,7 @@ class RegisterApp(QWidget):
             self.status_label.setStyleSheet("color: green; font-weight: bold;")
 
     def save_data(self):
-        # 1. Validate Inputs
+        # 1. ตรวจสอบข้อมูลนำเข้า (Validation)
         user_id = self.id_input.text().strip()
         name = self.name_input.text().strip()
         balance = self.balance_input.text().strip()
@@ -114,15 +124,19 @@ class RegisterApp(QWidget):
             return
 
         if self.current_vector is None:
-            QMessageBox.warning(self, "No Face", "Camera hasn't detected a face yet. Please wait for green status.")
+            QMessageBox.warning(self, "No Face", "Camera hasn't detected a face yet.\nPlease wait for green status.")
             return
 
-        # 2. Save to Firebase
+        # 2. บันทึกลง Database
         try:
-            success = self.db.register_user(user_id, name, balance, self.current_vector, pdpa_consent)
+            # ✅ แก้ไขจุดสำคัญ: ส่งแค่ 4 arguments ตามที่ DatabaseHandler รองรับ
+            # (PDPA เช็คไปแล้วใน UI ไม่ต้องส่งเข้า DB หรือถ้าจะเก็บต้องไปแก้ DB เพิ่ม)
+            success = self.db.register_user(user_id, name, balance, self.current_vector)
             
             if success:
                 QMessageBox.information(self, "Success", f"User {name} (ID: {user_id}) registered successfully!")
+                
+                # เคลียร์ค่าหลังบันทึกเสร็จ
                 self.name_input.clear()
                 self.id_input.clear()
                 self.balance_input.clear()
@@ -136,7 +150,9 @@ class RegisterApp(QWidget):
             QMessageBox.critical(self, "Error", f"Error: {str(e)}")
 
     def closeEvent(self, event):
-        self.camera.stop()
+        print("Closing Register App...")
+        if hasattr(self, 'camera'):
+            self.camera.stop()
         event.accept()
 
 if __name__ == "__main__":

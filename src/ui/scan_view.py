@@ -114,8 +114,14 @@ class ScanView(QWidget):
         self.lbl_hint.setText("Looking at camera...") # ข้อความเริ่มต้น
         self.loading_circle.start_anim()
         self.is_scanning = True 
+        self.matcher.refresh_users()
 
         try:
+            try: self.camera.frame_received.disconnect(self.update_video)
+            except: pass
+            try: self.camera.face_detected.disconnect(self.check_face)
+            except: pass
+
             try: self.camera.frame_received.disconnect(self.update_video)
             except: pass
             try: self.camera.face_detected.disconnect(self.check_face)
