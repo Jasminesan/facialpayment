@@ -54,7 +54,7 @@ class CameraService(QThread):
 
         # 2. Setup Face Detection Network
         face_det = pipeline.create(dai.node.MobileNetDetectionNetwork)
-        face_det.setConfidenceThreshold(0.4)
+        face_det.setConfidenceThreshold(0.3)
         face_det.setBlobPath(self.fd_blob)
         cam_rgb.preview.link(face_det.input)
 

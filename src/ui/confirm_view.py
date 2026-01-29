@@ -1,7 +1,40 @@
 from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QMessageBox
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QThread
 from ui.ui_config import AppConfig
 from database.connector import DatabaseHandler  
+
+
+class PaymentWorker(QThread):
+    finished = Signal(bool, object) # ส่งค่ากลับ (สำเร็จไหม, ข้อมูล/Error)
+
+    def __init__(self, db, user_id, amount):
+        super().__init__()
+        self.db = db
+        self.user_id = user_id
+        self.amount = amount
+
+    def run(self):
+        try:
+            # เรียกใช้ฟังก์ชันตัดเงิน (ทำงานหลังบ้าน ไม่กวนหน้าจอ)
+            print(f"🔄 Worker: Processing payment for {self.user_id}...")
+            
+            # ⚠️ หมายเหตุ: ตรวจสอบ DatabaseHandler ว่ารับ parameter อะไรบ้าง
+            # ในโค้ดก่อนหน้าเรารับแค่ (user_id, amount) 
+            result = self.db.process_payment(self.user_id, self.amount)
+            
+            # ตรวจสอบผลลัพธ์จาก Dict ที่ได้กลับมา
+            if result.get("success"):
+                self.finished.emit(True, result)
+            else:
+                self.finished.emit(False, result.get("error", "Unknown Error"))
+                
+        except Exception as e:
+            print(f"❌ Worker Error: {e}")
+            self.finished.emit(False, str(e))
+
+# ==========================================
+# 2. ปรับปรุง Class ConfirmView
+# ==========================================
 class ConfirmView(QWidget):
     payment_success = Signal(dict) 
     cancel_clicked = Signal()
@@ -9,10 +42,9 @@ class ConfirmView(QWidget):
     def __init__(self):
         super().__init__()
         self.db = DatabaseHandler()
-        
         self.current_user_id = None
         self.payment_amount = 0.0
-
+        self.worker = None # ตัวแปรสำหรับเก็บ Thread
         self.init_ui()
 
     def init_ui(self):
@@ -57,12 +89,12 @@ class ConfirmView(QWidget):
         btn_layout = QHBoxLayout()
         btn_layout.setSpacing(20)
 
-        self.btn_ok = QPushButton("CONFIRM PAY") # เปลี่ยนชื่อปุ่มให้สื่อความหมาย
+        self.btn_ok = QPushButton("CONFIRM PAY")
         self.btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ok.setStyleSheet(f"background-color: {AppConfig.COLOR_BTN_GREEN}; color: white; font-weight: bold; padding: 10px; border-radius: 5px;")
         
-        # 3. แก้ event click ให้ไปเรียกฟังก์ชันตัดเงิน (on_confirm_process) แทนการ emit ตรงๆ
-        self.btn_ok.clicked.connect(self.on_confirm_process)
+        # เชื่อมปุ่มเข้ากับฟังก์ชันเริ่ม Thread
+        self.btn_ok.clicked.connect(self.start_payment_thread)
 
         btn_cancel = QPushButton("CANCEL")
         btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -88,28 +120,45 @@ class ConfirmView(QWidget):
         self.lbl_name.setText(name)
         self.lbl_total.setText(f"{balance:,.2f}")
         self.lbl_pay.setText(f"{amount:,.2f}")
+        
+        # รีเซ็ตปุ่มให้พร้อมกดใหม่เสมอ
+        self.btn_ok.setText("CONFIRM PAY")
+        self.btn_ok.setEnabled(True)
 
-    def on_confirm_process(self):
+    # 3. ฟังก์ชันเริ่มทำงาน (Start)
+    def start_payment_thread(self):
         if not self.current_user_id:
             return
 
+        # ล็อคปุ่มกันกดซ้ำ
         self.btn_ok.setEnabled(False)
         self.btn_ok.setText("Processing...")
         
-        print(f"💰 Processing Payment for {self.lbl_name.text()} : {self.payment_amount} THB")
+        print(f"💰 Starting Thread for: {self.payment_amount} THB")
 
-        success, result = self.db.process_payment(
-            user_id=self.current_user_id, 
-            amount=self.payment_amount,
-            items="Food Court Payment" 
-        )
+        # สร้างและรัน Worker Thread
+        self.worker = PaymentWorker(self.db, self.current_user_id, self.payment_amount)
+        self.worker.finished.connect(self.handle_payment_result)
+        self.worker.start()
 
-        if success:
-            print("✅ Payment Success!")
-            self.payment_success.emit(result)
-        else:
-            print(f"❌ Payment Failed: {result}")
-            QMessageBox.critical(self, "Payment Error", f"ทำรายการไม่สำเร็จ: {result}")
-            
+    # 4. ฟังก์ชันรับผลลัพธ์ (Callback)
+    def handle_payment_result(self, is_success, result_data):
+        # คืนค่าปุ่ม
         self.btn_ok.setEnabled(True)
         self.btn_ok.setText("CONFIRM PAY")
+
+        if is_success:
+            print("✅ Payment Success (Thread)!")
+            # ส่งข้อมูลไปหน้า Success
+            receipt = {
+                "user_name": result_data.get("user_name", self.lbl_name.text()),
+                "amount": self.payment_amount
+            }
+            final_data = {
+                "receipt": receipt,
+                "new_balance": result_data.get("new_balance", 0.0)
+            }
+            self.payment_success.emit(final_data)
+        else:
+            print(f"❌ Payment Failed: {result_data}")
+            QMessageBox.critical(self, "Payment Error", f"เกิดข้อผิดพลาด: {result_data}")
