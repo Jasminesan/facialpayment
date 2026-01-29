@@ -1,57 +1,29 @@
-import serial
+import socket
 from PySide6.QtCore import QThread, Signal
-import time
 
-class SerialListener(QThread):
+class SocketListener(QThread):
     payment_received = Signal(float)
 
-    def __init__(self, port='/dev/ttyUSB0', baud=9600):
+    def __init__(self):
         super().__init__()
-        self.port = port
-        self.baud = baud
+        self.host = '0.0.0.0' # ฟังจากทุกเครื่อง
+        self.port = 65432
         self.is_running = True
-        self.ser = None
 
     def run(self):
-        while self.is_running:
-            try:
-                if self.ser is None or not self.ser.is_open:
-                    try:
-                        self.ser = serial.Serial(self.port, self.baud, timeout=1)
-                        print(f"✅ UART Listener Connected on {self.port}")
-                    except Exception as e:
-                        print(f"⏳ Waiting for Serial Device... ({e})")
-                        time.sleep(2)
-                        continue
-
-                if self.ser.in_waiting > 0:
-                    line = self.ser.readline().decode('utf-8', errors='ignore').strip()
-                    
-                    if line:
-                        print(f"📥 Raw Data: {line}")
-                        self._process_data(line)
-                
-                self.msleep(50) 
-
-            except Exception as e:
-                print(f"❌ Serial Error: {e}")
-                if self.ser:
-                    self.ser.close()
-                time.sleep(1)
-
-    def _process_data(self, data):
-        if data.startswith("PAY:"):
-            try:
-                amount_str = data.split(":")[1]
-                amount = float(amount_str)
-                print(f"💰 Payment Request: {amount} THB")
-                
-                self.payment_received.emit(amount)
-            except ValueError:
-                print("❌ Invalid amount format")
-
-    def stop(self):
-        self.is_running = False
-        if self.ser and self.ser.is_open:
-            self.ser.close()
-        self.wait()
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind((self.host, self.port))
+            s.listen()
+            print(f"📡 Waiting for Payment on port {self.port}...")
+            
+            while self.is_running:
+                conn, addr = s.accept() # รอรับการเชื่อมต่อ
+                with conn:
+                    data = conn.recv(1024)
+                    if data:
+                        text = data.decode().strip()
+                        if text.startswith("PAY:"):
+                            try:
+                                amount = float(text.split(":")[1])
+                                self.payment_received.emit(amount)
+                            except ValueError: pass
