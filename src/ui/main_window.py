@@ -22,7 +22,9 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Biometric Payment System")
         self.setStyleSheet(f"background-color: {AppConfig.COLOR_BG_GRAY};")
         
-        self.showFullScreen()
+        # ⚠️ แนะนำให้ใช้ showMaximized() ตอน Dev จะได้ปิดง่ายๆ
+        # แต่ถ้าขึ้น Production ให้ใช้ self.showFullScreen()
+        self.showFullScreen() 
         
         self.db = DatabaseHandler() 
         self.current_bill_amount = 0.0
@@ -74,16 +76,22 @@ class MainWindow(QMainWindow):
         self.stack.setCurrentWidget(self.view_home)
 
     def setup_connections(self):
-        self.view_home.settings_clicked.connect(lambda: self.switch_to(self.view_settings))
+        # Home -> Settings
+        self.view_home.settings_clicked.connect(self.go_to_settings)
         self.view_home.start_clicked.connect(self.start_scan_process)
         
+        # Settings -> Home
         self.view_settings.back_clicked.connect(lambda: self.switch_to(self.view_home))
         self.view_settings.language_changed.connect(self.on_language_changed)
 
+        # Scan Logic
         self.view_scan.scanned_success.connect(self.on_scan_success)
         self.view_scan.scanned_fail.connect(lambda: self.switch_to(self.view_no_result))
+        
+        # Retry Logic
         self.view_no_result.retry_clicked.connect(self.start_scan_process)
 
+        # Confirm & Payment Logic
         self.view_confirm.payment_success.connect(self.on_payment_complete)
         self.view_confirm.cancel_clicked.connect(lambda: self.switch_to(self.view_home))
         self.view_success.finished.connect(lambda: self.switch_to(self.view_home))
@@ -91,12 +99,22 @@ class MainWindow(QMainWindow):
     def switch_to(self, widget):
         self.stack.setCurrentWidget(widget)
 
+    def go_to_settings(self):
+        """ฟังก์ชันเข้าหน้า Setting แบบปลอดภัย"""
+        print("⚙️ Opening Settings...")
+        # หยุดกล้องก่อนเสมอ ไม่งั้น Pi ค้าง
+        if hasattr(self.view_scan, 'stop_camera'):
+             self.view_scan.stop_camera()
+        
+        self.switch_to(self.view_settings)
+
     def start_scan_process(self):
         self.view_scan.start_scanning() 
         self.switch_to(self.view_scan)
 
     def update_face_database(self, users_list):
-        if hasattr(self.camera_service, 'matcher'):
+        # โหลดข้อมูลหน้าเข้า RAM (ทำใน Thread หรือ Callback)
+        if hasattr(self.camera_service, 'matcher') and self.camera_service.matcher:
             print(f"🔄 Updating Face Matcher with {len(users_list)} users...")
             self.camera_service.matcher.load_users_from_data(users_list)
             print("✅ Face Database Updated in RAM!")
@@ -110,22 +128,35 @@ class MainWindow(QMainWindow):
             self.start_scan_process()
 
     def on_scan_success(self, user_data_from_scan):
+        """เมื่อสแกนหน้าเจอ"""
         user_id = user_data_from_scan.get("user_id") 
-        
-        print(f"🔍 Face Found: {user_id}. Fetching fresh data...")
+        role = user_data_from_scan.get("role", "user") # สมมติว่ามี field role
 
+        print(f"🔍 Face Found: {user_id} (Role: {role})")
+
+        # ✅ 1. เพิ่ม Logic เช็ค Admin (แก้บั๊กเด้งเองแล้วค้าง)
+        if role == 'admin' or user_id == 'admin':
+            print("👤 Admin Detected! Switching to Settings...")
+            self.go_to_settings() # เรียกฟังก์ชันที่หยุดกล้องแล้ว
+            return # จบการทำงาน ไม่ไปหน้า Confirm
+
+        # ✅ 2. Logic ปกติสำหรับ User ทั่วไป
+        # ดึงข้อมูลล่าสุดจาก DB (เพื่อความชัวร์เรื่องเงิน)
         fresh_user_data = self.db.get_user_by_id(user_id)
         
         if fresh_user_data:
             name = fresh_user_data.get("name", "Unknown")
-            balance = fresh_user_data.get("balance", 0.0)
+            balance = float(fresh_user_data.get("balance", 0.0))
         else:
             name = user_data_from_scan.get("name", "Unknown")
-            balance = user_data_from_scan.get("balance", 0.0)
+            balance = float(user_data_from_scan.get("balance", 0.0))
 
+        # ตั้งค่ายอดเงิน (ถ้าไม่มีจาก POS ให้ใช้ 100 บาทเทส)
         bill_to_pay = self.current_bill_amount if self.current_bill_amount > 0 else 100.0
         
         print(f"💰 Preparing Bill: {bill_to_pay} THB for {name}")
+        
+        # ส่งข้อมูลไปหน้า Confirm
         self.view_confirm.set_user_data(user_id, name, balance, bill_to_pay)
         self.switch_to(self.view_confirm)
 
@@ -133,6 +164,7 @@ class MainWindow(QMainWindow):
         user_name = result['receipt']['user_name']
         new_balance = result['new_balance']
         
+        # รีเซ็ตยอดเงิน
         self.current_bill_amount = 0.0
         
         self.view_success.set_payment_details(user_name, new_balance)
@@ -140,8 +172,10 @@ class MainWindow(QMainWindow):
 
     def on_language_changed(self, lang):
         print(f"Language changed to: {lang}")
+        # ใส่ Logic เปลี่ยนภาษา UI ตรงนี้ (ถ้ามี)
 
     def keyPressEvent(self, event):
+        # กด Q เพื่อออกโปรแกรม (Dev Mode)
         if event.key() == Qt.Key.Key_Q:
             print("👋 Quit command received (Q). Exiting...")
             self.close()
@@ -152,6 +186,7 @@ class MainWindow(QMainWindow):
         print("Closing Application...")
         if hasattr(self, 'camera_service'):
             self.camera_service.stop()
+            self.camera_service.wait()
         if hasattr(self, 'serial_thread'):
             self.serial_thread.stop()
         super().closeEvent(event)
