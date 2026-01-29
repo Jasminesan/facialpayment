@@ -1,12 +1,8 @@
 import firebase_admin
 from firebase_admin import credentials, firestore
-from google.cloud.firestore_v1 import transaction
 import os
-import datetime
+import numpy as np
 from config.settings import Config
-
-# ✅ ต้อง import numpy ด้วย เพราะฟังก์ชัน get_user_by_face อาจจะถูกเรียกใช้แบบฉุกเฉิน
-import numpy as np 
 
 class DatabaseHandler:
     def __init__(self):
@@ -28,8 +24,27 @@ class DatabaseHandler:
         except Exception as e:
             print(f"❌ Connection Failed: {e}")
 
+    def listen_for_updates(self, callback_function):
+        if self.db is None: return
+
+        def on_snapshot(col_snapshot, changes, read_time):
+            print(f"♻️ Database Changed! Syncing RAM...")
+            users_list = []
+            for doc in col_snapshot:
+                data = doc.to_dict()
+                if "face_vector" in data:
+                    # แปลง List เป็น Numpy Array เพื่อให้ Face Matcher ใช้งานได้
+                    data["face_vector"] = np.array(data["face_vector"], dtype=np.float32)
+                    users_list.append(data)
+            
+            # เรียก Callback ที่ส่งมาจาก MainWindow
+            callback_function(users_list)
+
+        # สั่งให้เฝ้า Collection "users" เฉพาะคนที่ active
+        self.db.collection("users").where("is_active", "==", True).on_snapshot(on_snapshot)
+
     def get_all_active_users(self):
-        """ดึง User ทั้งหมดส่งให้ FaceMatcher"""
+        """ดึง User ทั้งหมด (สำหรับโหลดครั้งแรก)"""
         if self.db is None: return []
         try:
             docs = self.db.collection("users").where("is_active", "==", True).stream()
@@ -37,84 +52,19 @@ class DatabaseHandler:
             for doc in docs:
                 data = doc.to_dict()
                 if "face_vector" in data:
+                    data["face_vector"] = np.array(data["face_vector"], dtype=np.float32)
                     users.append(data)
             return users
         except Exception as e:
             print(f"❌ Fetch Users Error: {e}")
             return []
 
-    # ✅ ฟังก์ชันที่หายไป (เพิ่มกลับมาแล้ว)
     def get_user_by_id(self, user_id):
         """ดึงข้อมูล User ตาม ID"""
         if self.db is None: return None
         try:
             doc = self.db.collection("users").document(str(user_id)).get()
-            if doc.exists:
-                return doc.to_dict()
-            return None
+            return doc.to_dict() if doc.exists else None
         except Exception as e:
             print(f"❌ Get User Error: {e}")
             return None
-
-    # ==========================================
-    # 💰 Payment Section
-    # ==========================================
-    
-    @firestore.transactional
-    def _execute_payment(transaction, user_ref, txn_ref, amount, shop_id, items):
-        snapshot = user_ref.get(transaction=transaction)
-        
-        if not snapshot.exists:
-            raise Exception("User not found")
-
-        user_data = snapshot.to_dict()
-        current_balance = user_data.get("balance", 0.0)
-
-        if current_balance < amount:
-            raise Exception(f"ยอดเงินไม่พอ (มี: {current_balance}, จ่าย: {amount})")
-
-        new_balance = current_balance - amount
-        
-        txn_data = {
-            "transaction_id": txn_ref.id,
-            "user_id": user_data.get("user_id"),
-            "user_name": user_data.get("name"),
-            "amount": float(amount),
-            "shop_id": shop_id,
-            "items": items,
-            "status": "SUCCESS",
-            "timestamp": datetime.datetime.now(),
-            "server_timestamp": firestore.SERVER_TIMESTAMP
-        }
-
-        transaction.update(user_ref, {"balance": new_balance})
-        transaction.set(txn_ref, txn_data)
-
-        return {
-            "success": True,
-            "new_balance": new_balance,
-            "receipt": txn_data
-        }
-
-    def process_payment(self, user_id, amount, items="Payment", shop_id="SHOP_01"):
-        if self.db is None: return False, "Database Disconnected"
-
-        try:
-            user_ref = self.db.collection("users").document(str(user_id))
-            txn_ref = self.db.collection("transactions").document()
-
-            result = self._execute_payment(
-                self.db.transaction(),
-                user_ref,
-                txn_ref,
-                float(amount),
-                shop_id,
-                items
-            )
-            
-            print(f"✅ ตัดเงินสำเร็จ! บิลเลขที่: {result['receipt']['transaction_id']}")
-            return True, result
-
-        except Exception as e:
-            print(f"❌ ตัดเงินล้มเหลว: {e}")
-            return False, str(e)
