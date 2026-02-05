@@ -12,7 +12,7 @@ from ui.no_result_view import NoResultView
 from ui.settings_view import SettingsView
 
 # Import Services
-from services.pos_serial import SerialListener 
+from services.pos_macropad import MacroPadListener
 from services.camera import CameraService
 from database.connector import DatabaseHandler
 
@@ -43,14 +43,15 @@ class MainWindow(QMainWindow):
         except AttributeError:
             print("⚠️ Warning: DatabaseHandler might not have 'listen_for_updates' yet.")
 
-        # เริ่มระบบรับค่าจาก POS
+        # เริ่มระบบรับค่าจาก POS (MacroPad USB-Serial)
         try:
-            self.serial_thread = SerialListener(port='/dev/ttyUSB0', baud=9600)
+            # auto-detect the MacroPad USB-Serial device; set baud to 115200 (ignored for CDC but harmless)
+            self.serial_thread = MacroPadListener(port=None, baud=115200, auto_detect=True)
             self.serial_thread.payment_received.connect(self.on_pos_trigger)
             self.serial_thread.start()
-            print("✅ POS Serial Listener Started!")
+            print("✅ MacroPadListener (POS) Started!")
         except Exception as e:
-            print(f"❌ Serial Init Error: {e}")
+            print(f"❌ MacroPad Init Error: {e}")
 
         # Setup Stack
         self.stack = QStackedWidget()
