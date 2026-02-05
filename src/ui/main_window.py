@@ -37,6 +37,8 @@ class MainWindow(QMainWindow):
             print(f"❌ Camera Init Error: {e}")
 
         print("📡 Starting Real-time Sync...")
+        # buffer for updates that arrive before views/matchers are ready
+        self._pending_face_users = None
         try:
             # keep the listener registration so it is not garbage-collected
             self.user_listener = self.db.listen_for_updates(self.update_face_database)
@@ -75,6 +77,16 @@ class MainWindow(QMainWindow):
 
         self.setup_connections()
         self.stack.setCurrentWidget(self.view_home)
+
+        # If there was a pending face DB update before ScanView was created, apply it now
+        if self._pending_face_users:
+            try:
+                if getattr(self.view_scan, 'matcher', None):
+                    self.view_scan.matcher.load_users_from_data(self._pending_face_users)
+                    print(f"✅ Applied pending face DB ({len(self._pending_face_users)} users) to ScanView.matcher")
+                self._pending_face_users = None
+            except Exception as e:
+                print(f"❌ Failed to apply pending face DB to matcher: {e}")
 
     def setup_connections(self):
         # Home -> Settings

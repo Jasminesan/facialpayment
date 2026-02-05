@@ -1,4 +1,5 @@
 import time
+import re
 from PySide6.QtCore import QThread, Signal
 
 # Note: pyserial is required. Install with `pip install pyserial`
@@ -42,7 +43,12 @@ class MacroPadListener(QThread):
         while self._running:
             if not self.ser:
                 if not self.port:
-                    # try autodetect again
+                    # try autodetect again (print candidate ports for debugging)
+                    ports = list(serial.tools.list_ports.comports())
+                    if ports:
+                        print("🔍 Candidate serial ports:")
+                        for p in ports:
+                            print(f"  - {p.device} ({p.description})")
                     self.port = self._auto_detect_port()
                     if not self.port:
                         time.sleep(self.poll_interval)
@@ -100,10 +106,18 @@ class MacroPadListener(QThread):
             val = text.split(':', 1)[1].strip()
         else:
             val = text
-        try:
-            return float(val)
-        except ValueError:
+
+        # Try to extract the first numeric-looking token (allow commas/dots)
+        m = re.search(r"[-+]?\d{1,3}(?:[\.,]\d{3})*(?:[\.,]\d+)?|[-+]?\d+(?:[\.,]\d+)?", val)
+        if not m:
             print(f"❌ Invalid amount format from MacroPad: {text}")
+            return None
+
+        num_str = m.group(0).replace(',', '.')
+        try:
+            return float(num_str)
+        except ValueError:
+            print(f"❌ Could not parse numeric amount from MacroPad token: {num_str}")
             return None
 
     def _auto_detect_port(self):
