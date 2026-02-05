@@ -10,6 +10,24 @@ class FaceMatcher:
         self.known_users = self.db.get_all_active_users()
         print(f"✅ Loaded {len(self.known_users)} users.")
 
+    def load_users_from_data(self, users_list):
+        """โหลดข้อมูลผู้ใช้จาก list ที่รับเข้ามา (เช่นจาก listener)
+
+        users_list: list of dicts, face_vector อาจจะเป็น numpy array หรือ list
+        """
+        print("🔄 Loading users from provided data into FaceMatcher...")
+        self.known_users = []
+        for data in users_list:
+            # ensure face_vector is numpy array for internal use
+            fv = data.get("face_vector")
+            try:
+                data["face_vector"] = np.array(fv, dtype=np.float32)
+            except Exception:
+                # leave as-is if cannot convert
+                pass
+            self.known_users.append(data)
+        print(f"✅ Loaded {len(self.known_users)} users into matcher.")
+
     def find_match(self, input_vector, threshold=0.6):
         if not self.known_users:
             print("⚠️ ไม่มีข้อมูล User ในระบบเลย! (Known Users is empty)")

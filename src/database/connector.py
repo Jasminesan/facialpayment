@@ -57,6 +57,83 @@ class DatabaseHandler:
             print(f"❌ Get User Error: {e}")
             return None
 
+    def register_user(self, user_id, name, balance, face_vector, pdpa_consent=False, role='user'):
+        """ลงทะเบียนผู้ใช้ใหม่ หรืออัพเดตข้อมูลผู้ใช้เดิม
+
+        Parameters:
+            user_id (str|int): รหัสผู้ใช้ (จะถูกแปลงเป็น string)
+            name (str)
+            balance (float|str)
+            face_vector (list|np.array): เวกเตอร์หน้า (จะเก็บเป็น list ลง Firestore)
+            pdpa_consent (bool)
+            role (str)
+
+        Returns:
+            bool: True ถ้าสำเร็จ, False ถ้ามีข้อผิดพลาด
+        """
+        if self.db is None:
+            print("❌ [DB] Not connected")
+            return False
+
+        try:
+            doc_id = str(user_id).strip()
+            data = {
+                "user_id": doc_id,
+                "name": name,
+                "balance": float(balance),
+                "face_vector": (np.array(face_vector).tolist() if hasattr(face_vector, 'tolist') else list(face_vector)),
+                "is_active": True,
+                "pdpa_consent": bool(pdpa_consent),
+                "role": role,
+                "created_at": firestore.SERVER_TIMESTAMP
+            }
+
+            # เขียนทับหรือสร้างใหม่
+            self.db.collection("users").document(doc_id).set(data)
+            print(f"✅ User {doc_id} registered/updated.")
+            return True
+        except Exception as e:
+            print(f"❌ Register User Error: {e}")
+            return False
+
+    def listen_for_updates(self, callback):
+        """ตั้ง Listener แบบ realtime บน collection users (is_active==True)
+
+        จะเรียก callback(users_list) เมื่อมีการเปลี่ยนแปลง
+        คืนค่า listener registration (callable) ถ้าต้องการยกเลิก
+        """
+        if self.db is None:
+            print("❌ [DB] Not connected - cannot listen for updates")
+            return None
+
+        try:
+            col_ref = self.db.collection("users").where("is_active", "==", True)
+
+            def _on_snapshot(col_snapshot, changes, read_time):
+                users = []
+                for doc in col_snapshot:
+                    data = doc.to_dict()
+                    if "face_vector" in data:
+                        try:
+                            data["face_vector"] = np.array(data["face_vector"], dtype=np.float32)
+                        except Exception:
+                            # เก็บเป็น list ก็ได้
+                            pass
+                    users.append(data)
+
+                try:
+                    callback(users)
+                except Exception as e:
+                    print(f"❌ Callback Error in listen_for_updates: {e}")
+
+            # ลงทะเบียน listener
+            listener = col_ref.on_snapshot(_on_snapshot)
+            print("✅ Listening for user updates (Firestore)")
+            return listener
+        except Exception as e:
+            print(f"❌ listen_for_updates Error: {e}")
+            return None
+
     # ==========================================
     # 💰 Payment Section (Transaction Logic)
     # ==========================================

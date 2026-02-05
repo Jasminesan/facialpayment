@@ -22,8 +22,7 @@ class MainWindow(QMainWindow):
         self.setWindowTitle("Biometric Payment System")
         self.setStyleSheet(f"background-color: {AppConfig.COLOR_BG_GRAY};")
         
-        # ⚠️ แนะนำให้ใช้ showMaximized() ตอน Dev จะได้ปิดง่ายๆ
-        # แต่ถ้าขึ้น Production ให้ใช้ self.showFullScreen()
+       
         self.showFullScreen() 
         
         self.db = DatabaseHandler() 
@@ -39,7 +38,8 @@ class MainWindow(QMainWindow):
 
         print("📡 Starting Real-time Sync...")
         try:
-            self.db.listen_for_updates(self.update_face_database)
+            # keep the listener registration so it is not garbage-collected
+            self.user_listener = self.db.listen_for_updates(self.update_face_database)
         except AttributeError:
             print("⚠️ Warning: DatabaseHandler might not have 'listen_for_updates' yet.")
 
@@ -114,10 +114,29 @@ class MainWindow(QMainWindow):
 
     def update_face_database(self, users_list):
         # โหลดข้อมูลหน้าเข้า RAM (ทำใน Thread หรือ Callback)
-        if hasattr(self.camera_service, 'matcher') and self.camera_service.matcher:
-            print(f"🔄 Updating Face Matcher with {len(users_list)} users...")
-            self.camera_service.matcher.load_users_from_data(users_list)
-            print("✅ Face Database Updated in RAM!")
+        print(f"🔄 Updating Face Matcher with {len(users_list)} users...")
+        updated = False
+
+        # Prefer updating ScanView's matcher (ScanView creates its own FaceMatcher)
+        if hasattr(self, 'view_scan') and getattr(self.view_scan, 'matcher', None):
+            try:
+                self.view_scan.matcher.load_users_from_data(users_list)
+                print("✅ Face Database Updated in ScanView.matcher")
+                updated = True
+            except Exception as e:
+                print(f"❌ Failed to update ScanView.matcher: {e}")
+
+        # Also update camera_service.matcher if present (for setups where matcher is attached to camera)
+        if getattr(self, 'camera_service', None) and getattr(self.camera_service, 'matcher', None):
+            try:
+                self.camera_service.matcher.load_users_from_data(users_list)
+                print("✅ Face Database Updated in CameraService.matcher")
+                updated = True
+            except Exception as e:
+                print(f"❌ Failed to update CameraService.matcher: {e}")
+
+        if not updated:
+            print("⚠️ No matcher instance found to update. Ensure a FaceMatcher exists on ScanView or CameraService.")
 
     def on_pos_trigger(self, amount):
         print(f"⚡ Received POS Trigger: {amount} THB")
@@ -151,12 +170,10 @@ class MainWindow(QMainWindow):
             name = user_data_from_scan.get("name", "Unknown")
             balance = float(user_data_from_scan.get("balance", 0.0))
 
-        # ตั้งค่ายอดเงิน (ถ้าไม่มีจาก POS ให้ใช้ 100 บาทเทส)
         bill_to_pay = self.current_bill_amount if self.current_bill_amount > 0 else 100.0
         
         print(f"💰 Preparing Bill: {bill_to_pay} THB for {name}")
         
-        # ส่งข้อมูลไปหน้า Confirm
         self.view_confirm.set_user_data(user_id, name, balance, bill_to_pay)
         self.switch_to(self.view_confirm)
 
@@ -164,7 +181,6 @@ class MainWindow(QMainWindow):
         user_name = result['receipt']['user_name']
         new_balance = result['new_balance']
         
-        # รีเซ็ตยอดเงิน
         self.current_bill_amount = 0.0
         
         self.view_success.set_payment_details(user_name, new_balance)
