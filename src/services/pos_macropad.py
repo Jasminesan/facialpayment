@@ -70,6 +70,11 @@ class MacroPadListener(QThread):
                 line = self.ser.readline().decode('utf-8', errors='ignore').strip()
                 if line:
                     print(f"📩 Serial Received: {line}")
+                    # Ignore obvious debug/REPL noise coming from CircuitPython (e.g. "Failed to send" messages)
+                    low = line.lower()
+                    if 'failed to send' in low or 'code.py' in low or 'traceback' in low:
+                        print("🔕 Ignoring REPL/debug line from MacroPad")
+                        continue
                     amount = self._parse_line(line)
                     if amount is not None:
                         try:
