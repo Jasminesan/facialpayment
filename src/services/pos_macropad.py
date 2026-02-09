@@ -70,10 +70,9 @@ class MacroPadListener(QThread):
                 line = self.ser.readline().decode('utf-8', errors='ignore').strip()
                 if line:
                     print(f"📩 Serial Received: {line}")
-                    # Ignore obvious error/stacktrace lines, but allow lines that include a numeric token
-                    low = line.lower()
-                    if 'failed to send' in low or 'traceback' in low:
-                        print("🔕 Ignoring REPL/debug/failed-send line from MacroPad")
+                    # Strict filtering: only accept lines starting with 'PAY:' (case-insensitive)
+                    if not line.upper().startswith('PAY:'):
+                        print("🔕 Ignoring non-PAY line from MacroPad (likely REPL/debug)")
                         continue
                     amount = self._parse_line(line)
                     if amount is not None:
