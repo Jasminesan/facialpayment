@@ -20,11 +20,22 @@ class SettingsView(QWidget):
         layout.setContentsMargins(40, 40, 40, 40)
         layout.setSpacing(20)
 
-        # หัวข้อ
+        # หัวข้อ + ปุ่ม Admin
+        top_row = QHBoxLayout()
         self.lbl_title = QLabel(t("settings.title"))
         self.lbl_title.setFont(QFont(AppConfig.FONT_FAMILY, 32, QFont.Weight.Bold))
         self.lbl_title.setStyleSheet("background-color: transparent;")
-        layout.addWidget(self.lbl_title)
+        top_row.addWidget(self.lbl_title)
+        top_row.addStretch()
+        # Visible Admin toggle/button
+        self.btn_admin = QPushButton(t("settings.admin"))
+        self.btn_admin.setFlat(True)
+        self.btn_admin.setFont(QFont(AppConfig.FONT_FAMILY, 16))
+        self.btn_admin.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_admin.setStyleSheet("color: #444444; background-color: transparent;")
+        self.btn_admin.clicked.connect(self._toggle_admin)
+        top_row.addWidget(self.btn_admin)
+        layout.addLayout(top_row)
 
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
@@ -98,6 +109,8 @@ class SettingsView(QWidget):
     def update_language(self):
         self.lbl_title.setText(t("settings.title"))
         self.lbl_lang.setText(t("settings.language"))
+        if hasattr(self, 'btn_admin'):
+            self.btn_admin.setText(t("settings.admin"))
         if hasattr(self, 'btn_register_big'):
             self.btn_register_big.setText(t("home.register"))
         if hasattr(self, 'btn_topup_big'):
@@ -129,3 +142,13 @@ class SettingsView(QWidget):
         """Show large REGISTER / TOP-UP when enabled. Hide language controls."""
         self.admin_container.setVisible(enabled)
         self.lang_container.setVisible(not enabled)
+
+    def _toggle_admin(self):
+        """Toggle admin container visibility from the visible Admin button."""
+        try:
+            cur = self.admin_container.isVisible()
+            # show admin actions and hide language controls when enabled
+            self.admin_container.setVisible(not cur)
+            self.lang_container.setVisible(cur)
+        except Exception:
+            pass

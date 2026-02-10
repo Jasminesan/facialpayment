@@ -12,7 +12,6 @@ class AppConfig:
     # --- Font Settings ---
     FONT_FAMILY = "Arial"
     # --- Admin PIN (default) ---
-    # Change this value in production or read from secure storage.
     ADMIN_PIN = "6767"
 
 
@@ -60,6 +59,7 @@ TEXTS = {
     "settings.title":       {"THA": "⚙  ตั้งค่า",            "ENG": "⚙  Settings"},
     "settings.language":    {"THA": "ภาษา",                  "ENG": "Language"},
     "settings.back":        {"THA": "◀  กลับ",               "ENG": "◀  Back"},
+    "settings.admin":       {"THA": "ผู้ดูแล",               "ENG": "Admin"},
 
     # ---- Register ----
     "reg.title":            {"THA": "📝  ลงทะเบียนผู้ใช้ใหม่", "ENG": "📝  Register New User"},

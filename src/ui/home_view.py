@@ -19,7 +19,7 @@ class HomeView(QWidget):
         # Timer for long-press on the hidden settings hotspot (5 seconds)
         self._hold_timer = QTimer(self)
         self._hold_timer.setSingleShot(True)
-        self._hold_timer.setInterval(5000)
+        self._hold_timer.setInterval(2000)
         self._hold_timer.timeout.connect(self._on_settings_hold)
         self.init_ui()
 
@@ -43,7 +43,8 @@ class HomeView(QWidget):
         # Make the button invisible but still receive mouse events
         self.btn_settings.setFlat(True)
         self.btn_settings.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_settings.setFixedSize(70, 44)
+        # make hotspot larger for easier touch on touchscreen devices
+        self.btn_settings.setFixedSize(140, 88)
         self.btn_settings.setStyleSheet("background: transparent; border: none;")
         top_bar.addWidget(self.btn_settings)
         layout.addLayout(top_bar)
