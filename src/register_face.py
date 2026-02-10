@@ -1,146 +1,26 @@
+"""
+ไฟล์นี้ถูกรวมเข้ากับแอปหลักแล้ว
+เรียกใช้ผ่าน:  python src/main.py
+แล้วกดปุ่ม "📝 ลงทะเบียน" หรือ "💰 เติมเงิน" บนหน้า Home
+
+หรือจะรันไฟล์นี้โดยตรงก็ได้ — จะเปิดแอปหลักเหมือนกัน
+"""
 import sys
 import os
-from PySide6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QLabel, 
-                               QLineEdit, QPushButton, QMessageBox, QCheckBox, QHBoxLayout)
-from PySide6.QtCore import Qt, Slot, QTimer
-from PySide6.QtGui import QImage, QPixmap
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(os.path.join(current_dir, ".."))
+sys.path.append(current_dir)
 
-from services.camera import CameraService
-from database.connector import DatabaseHandler
+from PySide6.QtWidgets import QApplication
+from ui.main_window import MainWindow
 
-class RegisterApp(QWidget):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Register New User (OAK-D PoE)")
-        self.setGeometry(100, 100, 500, 750) 
-        # Init Database & Camera
-        self.db = DatabaseHandler()
-        self.camera = CameraService(send_interval=0.5) 
-        
-        self.current_vector = None
-        self.is_capturing = True
 
-        self.init_ui()
-        self.setup_camera()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-
-        # 1. Video Display
-        self.video_label = QLabel("Waiting for OAK-D Camera...")
-        self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setMinimumSize(400, 300)
-        self.video_label.setStyleSheet("background-color: black; color: white;")
-        layout.addWidget(self.video_label)
-
-        # 2. Status Label
-        self.status_label = QLabel("🔍 Looking for face...")
-        self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: orange;")
-        layout.addWidget(self.status_label)
-
-        # 3. Input Fields
-        # 3.1 User ID (เพิ่มใหม่)
-        self.id_input = QLineEdit()
-        self.id_input.setPlaceholderText("Enter User ID (e.g. 101)")
-        layout.addWidget(self.id_input)
-
-        # 3.2 Name
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("Enter Full Name")
-        layout.addWidget(self.name_input)
-
-        # 3.3 Balance
-        self.balance_input = QLineEdit()
-        self.balance_input.setPlaceholderText("Initial Balance (e.g. 500.00)")
-        layout.addWidget(self.balance_input)
-
-        # 3.4 PDPA Consent (เพิ่มใหม่)
-        self.pdpa_checkbox = QCheckBox("I agree to PDPA Consent (ยินยอมให้เก็บข้อมูลใบหน้า)")
-        self.pdpa_checkbox.setStyleSheet("font-size: 14px; margin-top: 10px;")
-        layout.addWidget(self.pdpa_checkbox)
-
-        # 4. Buttons
-        self.capture_btn = QPushButton("📸 FORCE CAPTURE")
-        self.capture_btn.setStyleSheet("background-color: #f1c40f; font-weight: bold; padding: 10px;")
-        self.capture_btn.clicked.connect(self.save_data)
-        layout.addWidget(self.capture_btn)
-
-        self.close_btn = QPushButton("❌ Close")
-        self.close_btn.setStyleSheet("background-color: #e74c3c; color: white; padding: 10px;")
-        self.close_btn.clicked.connect(self.close)
-        layout.addWidget(self.close_btn)
-
-        self.setLayout(layout)
-
-    def setup_camera(self):
-        self.camera.frame_received.connect(self.update_frame)
-        self.camera.face_detected.connect(self.update_vector)
-        self.camera.start()
-
-    @Slot(QImage)
-    def update_frame(self, image):
-        if self.is_capturing:
-            pixmap = QPixmap.fromImage(image)
-            self.video_label.setPixmap(pixmap.scaled(
-                self.video_label.width(), 
-                self.video_label.height(), 
-                Qt.KeepAspectRatio
-            ))
-
-    @Slot(list)
-    def update_vector(self, vector):
-        if self.is_capturing:
-            self.current_vector = vector
-            self.status_label.setText("✅ Face Detected! Ready to Save.")
-            self.status_label.setStyleSheet("color: green; font-weight: bold;")
-
-    def save_data(self):
-        # 1. Validate Inputs
-        user_id = self.id_input.text().strip()
-        name = self.name_input.text().strip()
-        balance = self.balance_input.text().strip()
-        pdpa_consent = self.pdpa_checkbox.isChecked()
-
-        if not user_id or not name or not balance:
-            QMessageBox.warning(self, "Error", "Please fill in all fields (ID, Name, Balance).")
-            return
-
-        if not pdpa_consent:
-            QMessageBox.warning(self, "PDPA Required", "You must agree to PDPA consent to register.")
-            return
-
-        if self.current_vector is None:
-            QMessageBox.warning(self, "No Face", "Camera hasn't detected a face yet. Please wait for green status.")
-            return
-
-        # 2. Save to Firebase
-        try:
-            success = self.db.register_user(user_id, name, balance, self.current_vector, pdpa_consent)
-            
-            if success:
-                QMessageBox.information(self, "Success", f"User {name} (ID: {user_id}) registered successfully!")
-                self.name_input.clear()
-                self.id_input.clear()
-                self.balance_input.clear()
-                self.pdpa_checkbox.setChecked(False)
-                self.current_vector = None
-                self.status_label.setText("🔍 Looking for face...")
-                self.status_label.setStyleSheet("color: orange;")
-            else:
-                QMessageBox.critical(self, "Error", "Failed to save to database. Check terminal for details.")
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error: {str(e)}")
-
-    def closeEvent(self, event):
-        self.camera.stop()
-        event.accept()
-
-if __name__ == "__main__":
+def main():
     app = QApplication(sys.argv)
-    window = RegisterApp()
+    window = MainWindow()
     window.show()
     sys.exit(app.exec())
+
+
+if __name__ == "__main__":
+    main()

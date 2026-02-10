@@ -3,7 +3,7 @@ from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QMovie 
 import os 
 
-from ui.ui_config import AppConfig
+from ui.ui_config import AppConfig, t
 
 class SuccessView(QWidget):
     finished = Signal()
@@ -50,21 +50,22 @@ class SuccessView(QWidget):
 
         # ============================================================
 
-        lbl_title = QLabel("PAYMENT SUCCESS")
-        lbl_title.setStyleSheet(f"font-size: 30px; font-weight: bold; color: {AppConfig.COLOR_BTN_GREEN}; background-color: transparent;")
-        lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # Title and details
+        self.lbl_title = QLabel(t("success.title"))
+        self.lbl_title.setStyleSheet(f"font-size: 30px; font-weight: bold; color: {AppConfig.COLOR_BTN_GREEN}; background-color: transparent;")
+        self.lbl_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.lbl_name = QLabel("User Name")
         self.lbl_name.setStyleSheet("font-size: 24px; font-weight: bold; background-color: transparent;")
         self.lbl_name.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.lbl_balance = QLabel("New Balance: 0.00") 
+        self.lbl_balance = QLabel("")
         self.lbl_balance.setStyleSheet("font-size: 20px; color: #888888; background-color: transparent;")
         self.lbl_balance.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         layout.addStretch()
         layout.addWidget(self.lbl_icon)
-        layout.addWidget(lbl_title)
+        layout.addWidget(self.lbl_title)
         layout.addSpacing(20)
         layout.addWidget(self.lbl_name)
         layout.addWidget(self.lbl_balance)
@@ -74,10 +75,25 @@ class SuccessView(QWidget):
 
     def set_payment_details(self, name, new_balance):
         self.lbl_name.setText(name)
-        self.lbl_balance.setText(f"ยอดคงเหลือ: {new_balance:,.2f} บาท")
+        self.lbl_balance.setText(t("success.balance", bal=f"{new_balance:,.2f}"))
         
         if self.movie:
             self.movie.jumpToFrame(0)
             self.movie.start()
             
         self.timer.start(2000)
+
+    def update_language(self):
+        # update static title/balance format when language changes
+        # lbl_name is user data and left as-is
+        # keep balance formatting using t()
+        # if balance currently shown, reformat it
+        text = self.lbl_balance.text()
+        # Try to extract numeric value from existing text
+        try:
+            if ":" in text:
+                part = text.split(":", 1)[1].strip()
+                bal = float(part.replace("บาท", "").replace("฿", "").replace(",", ""))
+                self.lbl_balance.setText(t("success.balance", bal=f"{bal:,.2f}"))
+        except Exception:
+            pass

@@ -3,7 +3,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal, QTimer, QRectF, Slot
 from PySide6.QtGui import QPainter, QPen, QColor, QImage, QPainterPath, QBrush, QPixmap
 
-from ui.ui_config import AppConfig
+from ui.ui_config import AppConfig, t
 from database.connector import DatabaseHandler
 from services.face_matcher import FaceMatcher 
 
@@ -90,7 +90,7 @@ class ScanView(QWidget):
         layout.setSpacing(15) # ลดช่องว่างลงหน่อย
 
         # 1. ข้อความสถานะหลัก
-        self.lbl_status = QLabel("Waiting...")
+        self.lbl_status = QLabel(t("scan.waiting"))
         self.lbl_status.setStyleSheet("font-size: 28px; font-weight: bold; color: #333333;")
 
         # 2. วงกลมกล้อง
@@ -110,8 +110,8 @@ class ScanView(QWidget):
     
 
     def start_scanning(self):
-        self.lbl_status.setText("Scanning...")
-        self.lbl_hint.setText("Looking at camera...") # ข้อความเริ่มต้น
+        self.lbl_status.setText(t("scan.scanning"))
+        self.lbl_hint.setText(t("scan.look_camera"))
         self.loading_circle.start_anim()
         self.is_scanning = True 
 
@@ -158,7 +158,7 @@ class ScanView(QWidget):
     def check_face(self, vector):
         if not self.is_scanning: return
 
-        self.lbl_status.setText("Checking...")
+        self.lbl_status.setText(t("scan.checking"))
         
         result = self.matcher.find_match(vector) 
 
@@ -168,16 +168,19 @@ class ScanView(QWidget):
 
             if result['found']:
                 self.lbl_hint.setStyleSheet("color: green;")
-                self.lbl_hint.setText("Perfect! (หน้าชัดเจน)")
+                self.lbl_hint.setText(t("scan.success"))
                 self.stop_scanning()
                 self.scanned_success.emit(result)
             else:
                 self.lbl_hint.setStyleSheet("color: #FF5722;") # สีส้ม
                 if score > 0.35: 
-                    self.lbl_hint.setText("Move Closer (ขยับเข้ามาอีกนิด)")
+                    self.lbl_hint.setText(t("scan.move_closer"))
                 elif score > 0.1:
-                    self.lbl_hint.setText("Come Closer (เข้ามาใกล้ๆ หน่อย)")
+                    self.lbl_hint.setText(t("scan.come_closer"))
                 else:
-                    self.lbl_hint.setText("Face not clear (หน้าไม่ชัด)")
+                    self.lbl_hint.setText(t("scan.not_clear"))
         else:
-            self.lbl_hint.setText("No Match")
+            self.lbl_hint.setText(t("scan.no_match"))
+
+    def update_language(self):
+        self.lbl_status.setText(t("scan.waiting"))

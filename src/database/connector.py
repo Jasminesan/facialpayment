@@ -135,6 +135,62 @@ class DatabaseHandler:
             return None
 
     # ==========================================
+    # 💰 Top-Up Section (เติมเงิน)
+    # ==========================================
+
+    def top_up_balance(self, user_id, amount):
+        """เติมเงินให้ผู้ใช้
+
+        Parameters:
+            user_id (str|int): รหัสผู้ใช้
+            amount (float): จำนวนเงินที่ต้องการเติม
+
+        Returns:
+            dict: {"success": True, "new_balance": ...} หรือ {"success": False, "error": ...}
+        """
+        if self.db is None:
+            return {"success": False, "error": "ไม่ได้เชื่อมต่อฐานข้อมูล"}
+
+        try:
+            clean_id = str(user_id).strip()
+            amount = float(amount)
+
+            if amount <= 0:
+                return {"success": False, "error": "จำนวนเงินต้องมากกว่า 0"}
+
+            user_ref = self.db.collection("users").document(clean_id)
+            snapshot = user_ref.get()
+
+            if not snapshot.exists:
+                return {"success": False, "error": f"ไม่พบผู้ใช้รหัส '{clean_id}'"}
+
+            user_data = snapshot.to_dict()
+            current_balance = float(user_data.get("balance", 0.0))
+            new_balance = current_balance + amount
+
+            user_ref.update({"balance": new_balance})
+
+            # บันทึก transaction log
+            self.db.collection("transactions").add({
+                "user_id": clean_id,
+                "user_name": user_data.get("name", ""),
+                "type": "TOP_UP",
+                "amount": amount,
+                "old_balance": current_balance,
+                "new_balance": new_balance,
+                "status": "SUCCESS",
+                "timestamp": datetime.datetime.now(),
+                "server_timestamp": firestore.SERVER_TIMESTAMP,
+            })
+
+            print(f"✅ เติมเงิน {amount:.2f} ให้ user {clean_id} สำเร็จ  ยอดใหม่: {new_balance:.2f}")
+            return {"success": True, "new_balance": new_balance}
+
+        except Exception as e:
+            print(f"❌ Top-up Error: {e}")
+            return {"success": False, "error": str(e)}
+
+    # ==========================================
     # 💰 Payment Section (Transaction Logic)
     # ==========================================
     

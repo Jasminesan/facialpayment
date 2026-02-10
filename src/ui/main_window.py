@@ -1,7 +1,7 @@
 from PySide6.QtWidgets import QMainWindow, QStackedWidget
 from PySide6.QtCore import Slot, Qt
 
-from ui.ui_config import AppConfig
+from ui.ui_config import AppConfig, set_lang
 
 # Import Views
 from ui.home_view import HomeView
@@ -10,6 +10,8 @@ from ui.confirm_view import ConfirmView
 from ui.success_view import SuccessView
 from ui.no_result_view import NoResultView
 from ui.settings_view import SettingsView
+from ui.register_view import RegisterView
+from ui.topup_view import TopUpView
 
 # Import Services
 from services.pos_macropad import MacroPadListener
@@ -19,7 +21,7 @@ from database.connector import DatabaseHandler
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Biometric Payment System")
+        self.setWindowTitle("ระบบชำระเงินด้วยใบหน้า")
         self.setStyleSheet(f"background-color: {AppConfig.COLOR_BG_GRAY};")
         
        
@@ -28,30 +30,27 @@ class MainWindow(QMainWindow):
         self.db = DatabaseHandler() 
         self.current_bill_amount = 0.0
 
-        print("📷 Initializing Camera Service...")
+        print("📷 กำลังเริ่มกล้อง...")
         self.camera_service = CameraService()
         try:
             self.camera_service.start() 
-            print("✅ Camera Started in Background!")
+            print("✅ เริ่มกล้องสำเร็จ!")
         except Exception as e:
             print(f"❌ Camera Init Error: {e}")
 
-        print("📡 Starting Real-time Sync...")
-        # buffer for updates that arrive before views/matchers are ready
+        print("📡 กำลังเชื่อมต่อฐานข้อมูลแบบ Realtime...")
         self._pending_face_users = None
         try:
-            # keep the listener registration so it is not garbage-collected
             self.user_listener = self.db.listen_for_updates(self.update_face_database)
         except AttributeError:
             print("⚠️ Warning: DatabaseHandler might not have 'listen_for_updates' yet.")
 
         # เริ่มระบบรับค่าจาก POS (MacroPad USB-Serial)
         try:
-            # auto-detect the MacroPad USB-Serial device; set baud to 115200 (ignored for CDC but harmless)
             self.serial_thread = MacroPadListener(port=None, baud=115200, auto_detect=True)
             self.serial_thread.payment_received.connect(self.on_pos_trigger)
             self.serial_thread.start()
-            print("✅ MacroPadListener (POS) Started!")
+            print("✅ MacroPadListener (POS) เริ่มทำงาน!")
         except Exception as e:
             print(f"❌ MacroPad Init Error: {e}")
 
@@ -66,17 +65,27 @@ class MainWindow(QMainWindow):
         self.view_success = SuccessView()
         self.view_no_result = NoResultView()
         self.view_settings = SettingsView()
+        self.view_register = RegisterView(self.camera_service, self.db)
+        self.view_topup = TopUpView(self.db)
 
         # Add Views to Stack
-        self.stack.addWidget(self.view_home)
-        self.stack.addWidget(self.view_scan)
-        self.stack.addWidget(self.view_confirm)
-        self.stack.addWidget(self.view_success)
-        self.stack.addWidget(self.view_no_result)
-        self.stack.addWidget(self.view_settings)
+        self.stack.addWidget(self.view_home)       # 0
+        self.stack.addWidget(self.view_scan)       # 1
+        self.stack.addWidget(self.view_confirm)    # 2
+        self.stack.addWidget(self.view_success)    # 3
+        self.stack.addWidget(self.view_no_result)  # 4
+        self.stack.addWidget(self.view_settings)   # 5
+        self.stack.addWidget(self.view_register)   # 6
+        self.stack.addWidget(self.view_topup)      # 7
 
         self.setup_connections()
         self.stack.setCurrentWidget(self.view_home)
+
+        # Apply current language to all views
+        try:
+            self._apply_language_to_all()
+        except Exception:
+            pass
 
         # If there was a pending face DB update before ScanView was created, apply it now
         if self._pending_face_users:
@@ -89,13 +98,27 @@ class MainWindow(QMainWindow):
                 print(f"❌ Failed to apply pending face DB to matcher: {e}")
 
     def setup_connections(self):
-        # Home -> Settings
-        self.view_home.settings_clicked.connect(self.go_to_settings)
+        # Home -> Settings / Register / TopUp
+        # Home -> Settings (settings_requested(admin: bool))
+        self.view_home.settings_requested.connect(self.go_to_settings)
         self.view_home.start_clicked.connect(self.start_scan_process)
+        self.view_home.register_clicked.connect(self.go_to_register)
+        self.view_home.topup_clicked.connect(self.go_to_topup)
         
         # Settings -> Home
         self.view_settings.back_clicked.connect(lambda: self.switch_to(self.view_home))
         self.view_settings.language_changed.connect(self.on_language_changed)
+        # Settings page may expose admin actions
+        if getattr(self.view_settings, 'register_clicked', None):
+            self.view_settings.register_clicked.connect(self.go_to_register)
+        if getattr(self.view_settings, 'topup_clicked', None):
+            self.view_settings.topup_clicked.connect(self.go_to_topup)
+
+        # Register -> Home
+        self.view_register.back_clicked.connect(self.back_from_register)
+
+        # TopUp -> Home
+        self.view_topup.back_clicked.connect(lambda: self.switch_to(self.view_home))
 
         # Scan Logic
         self.view_scan.scanned_success.connect(self.on_scan_success)
@@ -112,47 +135,67 @@ class MainWindow(QMainWindow):
     def switch_to(self, widget):
         self.stack.setCurrentWidget(widget)
 
-    def go_to_settings(self):
-        """ฟังก์ชันเข้าหน้า Setting แบบปลอดภัย"""
-        print("⚙️ Opening Settings...")
-        # หยุดกล้องก่อนเสมอ ไม่งั้น Pi ค้าง
+    # ========== Navigation ==========
+
+    def go_to_settings(self, admin=False):
+        print("⚙️ เปิดหน้าตั้งค่า... (admin=" + str(admin) + ")")
         if hasattr(self.view_scan, 'stop_camera'):
              self.view_scan.stop_camera()
-        
+        # If settings view supports admin mode, tell it to show register/topup
+        try:
+            if hasattr(self.view_settings, 'set_admin_mode'):
+                self.view_settings.set_admin_mode(admin)
+        except Exception:
+            pass
         self.switch_to(self.view_settings)
+
+    def go_to_register(self):
+        print("📝 เปิดหน้าลงทะเบียน...")
+        self.view_register.start_capture()
+        self.switch_to(self.view_register)
+
+    def back_from_register(self):
+        self.view_register.stop_capture()
+        self.switch_to(self.view_home)
+
+    def go_to_topup(self):
+        print("💰 เปิดหน้าเติมเงิน...")
+        self.view_topup.reset_view()
+        self.switch_to(self.view_topup)
 
     def start_scan_process(self):
         self.view_scan.start_scanning() 
         self.switch_to(self.view_scan)
 
+    # ========== Database ==========
+
     def update_face_database(self, users_list):
-        # โหลดข้อมูลหน้าเข้า RAM (ทำใน Thread หรือ Callback)
-        print(f"🔄 Updating Face Matcher with {len(users_list)} users...")
+        print(f"🔄 อัพเดตฐานข้อมูลใบหน้า ({len(users_list)} คน)...")
         updated = False
 
-        # Prefer updating ScanView's matcher (ScanView creates its own FaceMatcher)
         if hasattr(self, 'view_scan') and getattr(self.view_scan, 'matcher', None):
             try:
                 self.view_scan.matcher.load_users_from_data(users_list)
-                print("✅ Face Database Updated in ScanView.matcher")
+                print("✅ อัพเดตใน ScanView.matcher สำเร็จ")
                 updated = True
             except Exception as e:
                 print(f"❌ Failed to update ScanView.matcher: {e}")
 
-        # Also update camera_service.matcher if present (for setups where matcher is attached to camera)
         if getattr(self, 'camera_service', None) and getattr(self.camera_service, 'matcher', None):
             try:
                 self.camera_service.matcher.load_users_from_data(users_list)
-                print("✅ Face Database Updated in CameraService.matcher")
+                print("✅ อัพเดตใน CameraService.matcher สำเร็จ")
                 updated = True
             except Exception as e:
                 print(f"❌ Failed to update CameraService.matcher: {e}")
 
         if not updated:
-            print("⚠️ No matcher instance found to update. Ensure a FaceMatcher exists on ScanView or CameraService.")
+            print("⚠️ ไม่พบ matcher instance สำหรับอัพเดต")
+
+    # ========== POS Trigger (ชำระเงิน — จาก POS เท่านั้น) ==========
 
     def on_pos_trigger(self, amount):
-        print(f"⚡ Received POS Trigger: {amount} THB")
+        print(f"⚡ ได้รับค่าจาก POS: {amount} บาท")
         self.current_bill_amount = amount
         
         current = self.stack.currentWidget()
@@ -162,30 +205,27 @@ class MainWindow(QMainWindow):
     def on_scan_success(self, user_data_from_scan):
         """เมื่อสแกนหน้าเจอ"""
         user_id = user_data_from_scan.get("user_id") 
-        role = user_data_from_scan.get("role", "user") # สมมติว่ามี field role
+        role = user_data_from_scan.get("role", "user")
 
-        print(f"🔍 Face Found: {user_id} (Role: {role})")
+        print(f"🔍 พบใบหน้า: {user_id} (Role: {role})")
 
-        # ✅ 1. เพิ่ม Logic เช็ค Admin (แก้บั๊กเด้งเองแล้วค้าง)
         if role == 'admin' or user_id == 'admin':
-            print("👤 Admin Detected! Switching to Settings...")
-            self.go_to_settings() # เรียกฟังก์ชันที่หยุดกล้องแล้ว
-            return # จบการทำงาน ไม่ไปหน้า Confirm
+            print("👤 ตรวจพบ Admin! เปิดหน้าตั้งค่า...")
+            self.go_to_settings()
+            return
 
-        # ✅ 2. Logic ปกติสำหรับ User ทั่วไป
-        # ดึงข้อมูลล่าสุดจาก DB (เพื่อความชัวร์เรื่องเงิน)
         fresh_user_data = self.db.get_user_by_id(user_id)
         
         if fresh_user_data:
-            name = fresh_user_data.get("name", "Unknown")
+            name = fresh_user_data.get("name", "ไม่ทราบ")
             balance = float(fresh_user_data.get("balance", 0.0))
         else:
-            name = user_data_from_scan.get("name", "Unknown")
+            name = user_data_from_scan.get("name", "ไม่ทราบ")
             balance = float(user_data_from_scan.get("balance", 0.0))
 
         bill_to_pay = self.current_bill_amount if self.current_bill_amount > 0 else 100.0
         
-        print(f"💰 Preparing Bill: {bill_to_pay} THB for {name}")
+        print(f"💰 เตรียมบิล: {bill_to_pay} บาท สำหรับ {name}")
         
         self.view_confirm.set_user_data(user_id, name, balance, bill_to_pay)
         self.switch_to(self.view_confirm)
@@ -200,19 +240,49 @@ class MainWindow(QMainWindow):
         self.switch_to(self.view_success)
 
     def on_language_changed(self, lang):
-        print(f"Language changed to: {lang}")
-        # ใส่ Logic เปลี่ยนภาษา UI ตรงนี้ (ถ้ามี)
+        print(f"เปลี่ยนภาษาเป็น: {lang}")
+        try:
+            set_lang(lang)
+        except Exception:
+            pass
+
+        # propagate language change to every view that supports it
+        self._apply_language_to_all()
+
+        # update settings active button styles
+        try:
+            is_eng = (lang == "ENG")
+            if hasattr(self.view_settings, 'update_btn_style'):
+                self.view_settings.update_btn_style(self.view_settings.btn_eng, is_eng)
+                self.view_settings.update_btn_style(self.view_settings.btn_tha, not is_eng)
+        except Exception:
+            pass
+
+    def _apply_language_to_all(self):
+        views = [
+            self.view_home, self.view_scan, self.view_confirm,
+            self.view_success, self.view_no_result, self.view_settings,
+            self.view_register, self.view_topup,
+        ]
+        for v in views:
+            try:
+                if hasattr(v, 'update_language'):
+                    v.update_language()
+            except Exception as e:
+                print(f"⚠️ Failed to update language on {v}: {e}")
 
     def keyPressEvent(self, event):
-        # กด Q เพื่อออกโปรแกรม (Dev Mode)
         if event.key() == Qt.Key.Key_Q:
-            print("👋 Quit command received (Q). Exiting...")
+            print("👋 ออกจากโปรแกรม (Q)...")
             self.close()
         else:
             super().keyPressEvent(event)
 
     def closeEvent(self, event):
-        print("Closing Application...")
+        print("กำลังปิดโปรแกรม...")
+        # หยุด camera capture ของ register view ถ้ายังทำงานอยู่
+        if hasattr(self, 'view_register'):
+            self.view_register.stop_capture()
         if hasattr(self, 'camera_service'):
             self.camera_service.stop()
             self.camera_service.wait()

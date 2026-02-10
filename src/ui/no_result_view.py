@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from PySide6.QtCore import Qt, Signal, QTimer
 from PySide6.QtGui import QPixmap
 import os
-from ui.ui_config import AppConfig
+from ui.ui_config import AppConfig, t
 
 class NoResultView(QWidget):
     retry_clicked = Signal()
@@ -24,9 +24,8 @@ class NoResultView(QWidget):
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(20)
-
-        lbl_title = QLabel("No Results Found")
-        lbl_title.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {AppConfig.COLOR_TEXT_MAIN}; background-color: transparent;")
+        self.lbl_title = QLabel(t("noresult.title"))
+        self.lbl_title.setStyleSheet(f"font-size: 24px; font-weight: bold; color: {AppConfig.COLOR_TEXT_MAIN}; background-color: transparent;")
 
         lbl_img = QLabel()
         current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -39,7 +38,10 @@ class NoResultView(QWidget):
             lbl_img.setText("🐱")
             lbl_img.setStyleSheet("font-size: 50px;")
 
-        layout.addWidget(lbl_title, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.lbl_title, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(lbl_img, alignment=Qt.AlignmentFlag.AlignCenter)
         
         self.setLayout(layout)
+
+    def update_language(self):
+        self.lbl_title.setText(t("noresult.title"))
