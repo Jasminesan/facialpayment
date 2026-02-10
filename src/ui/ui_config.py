@@ -11,12 +11,15 @@ class AppConfig:
 
     # --- Font Settings ---
     FONT_FAMILY = "Arial"
+    # --- Admin PIN (default) ---
+    # Change this value in production or read from secure storage.
+    ADMIN_PIN = "6767"
 
 
 # ============================================================
 # ระบบสองภาษา (TH / EN)
 # ============================================================
-_CURRENT_LANG = "THA"
+_CURRENT_LANG = "ENG"
 
 TEXTS = {
     # ---- Home ----

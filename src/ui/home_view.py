@@ -1,5 +1,5 @@
 import os
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel, QInputDialog, QLineEdit, QMessageBox
 from PySide6.QtGui import QPainter, QPixmap, QFont
 from PySide6.QtCore import Qt, Signal, QTimer, QPropertyAnimation, QEasingCurve
 from ui.ui_config import AppConfig, t
@@ -67,7 +67,8 @@ class HomeView(QWidget):
             if self._hold_timer.isActive():
                 self._hold_timer.stop()
                 self._press_on_settings = False
-                self.settings_requested.emit(False)
+                # show PIN dialog to enter admin; on success emit admin request
+                self._prompt_pin()
                 return super().mouseReleaseEvent(event)
             # if timer already fired, _on_settings_hold has emitted admin=True
             self._press_on_settings = False
@@ -80,6 +81,18 @@ class HomeView(QWidget):
     # language updates are handled elsewhere; nothing to change here for home-only background
     def update_language(self):
         return
+
+    def _prompt_pin(self):
+        """Prompt for admin PIN. If correct, emit settings_requested(True)."""
+        title = t("settings.title") if 't' in globals() else "Settings"
+        prompt = "Enter admin PIN"
+        pin, ok = QInputDialog.getText(self, title, prompt, QLineEdit.EchoMode.Password)
+        if not ok:
+            return
+        if pin == AppConfig.ADMIN_PIN:
+            self.settings_requested.emit(True)
+        else:
+            QMessageBox.warning(self, title, "PIN ไม่ถูกต้อง")
 
     def _on_settings_hold(self):
         # Called when the hidden settings button has been pressed for 5 seconds
