@@ -12,12 +12,10 @@ class DatabaseHandler:
 
     def connect(self):
         try:
-            # 1. เช็คไฟล์ Key
             if not os.path.exists(Config.FIREBASE_KEY_PATH):
                 print(f"❌ [DB ERROR] Key not found at {Config.FIREBASE_KEY_PATH}")
                 return
 
-            # 2. เริ่มต้น Firebase App
             if not firebase_admin._apps:
                 cred = credentials.Certificate(Config.FIREBASE_KEY_PATH)
                 firebase_admin.initialize_app(cred)
