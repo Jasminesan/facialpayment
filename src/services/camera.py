@@ -27,21 +27,21 @@ class CameraService(QThread):
         self.fr_blob = os.path.join(MODEL_DIR, "face-recognition.blob")
         
         if not os.path.exists(self.fd_blob) or not os.path.exists(self.fr_blob):
-            print(f"❌ Error: Model files not found in {MODEL_DIR}")
+            print(f"Error: Model files not found in {MODEL_DIR}")
             self.running = False 
 
     def run(self):
         self.running = True
-        print(f"📷 Camera Service Started (OAK-D Only) - Interval: {self.send_interval}s")
+        print(f"Camera Service Started (OAK-D Only) - Interval: {self.send_interval}s")
 
         try:
             self._run_oak_pipeline()
         except Exception as e:
-            print(f"❌ OAK-D Critical Error: {e}")
+            print(f"OAK-D Critical Error: {e}")
             self.running = False
 
     def _run_oak_pipeline(self):
-        print("📷 Initializing OAK-D Pipeline...")
+        print("Initializing OAK-D Pipeline...")
         pipeline = dai.Pipeline()
 
         # 1. Setup Color Camera
@@ -120,7 +120,7 @@ class CameraService(QThread):
         face_det.out.link(xout_det.input)
 
         with dai.Device(pipeline) as device:
-            print("✅ OAK-D Connected & Pipeline Started!")
+            print("OAK-D Connected & Pipeline Started!")
             q_rgb = device.getOutputQueue("rgb", 4, False)
             q_rec = device.getOutputQueue("rec", 4, False)
             q_det = device.getOutputQueue("det", 4, False)
@@ -157,7 +157,7 @@ class CameraService(QThread):
                         vector = in_rec.getFirstLayerFp16()
                         
                         if len(vector) == 256:
-                            print(f"✅ Real Face Vector Detected! (Len: {len(vector)})")
+                            print(f"Real Face Vector Detected! (Len: {len(vector)})")
                             self.face_detected.emit(vector) # ส่ง Vector จริงจาก OAK-D
                             last_rec_time = time.time()
                 

@@ -1,276 +1,167 @@
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QMessageBox, QFormLayout, QGroupBox, QScrollArea,
-)
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QMessageBox, QSizePolicy
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QDoubleValidator, QIntValidator
+from PySide6.QtGui import QFont
 
 from ui.ui_config import AppConfig, t
 
 
 class TopUpView(QWidget):
-    """หน้าเติมเงิน — ค้นหาผู้ใช้ด้วย ID แล้วเติมเงิน"""
-
     back_clicked = Signal()
 
     def __init__(self, db):
         super().__init__()
         self.db = db
         self._found_user = None
+        self._amount_stack = []
         self.init_ui()
 
-    # ================================================================
-    # UI
-    # ================================================================
     def init_ui(self):
-        self.setStyleSheet(f"background-color: {AppConfig.COLOR_BG_MAIN}; color: {AppConfig.COLOR_TEXT_MAIN};")
+        self.setStyleSheet("background-color: #FFFFFF;")
         root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
+        root.setContentsMargins(56, 44, 56, 44)
+        root.setSpacing(16)
 
-        # ---- Header ----
-        header = QWidget()
-        header.setFixedHeight(60)
-        header.setStyleSheet("background-color: #2196F3;")
-        h_lay = QHBoxLayout(header)
-        h_lay.setContentsMargins(16, 0, 16, 0)
+        card = QFrame()
+        card.setStyleSheet("background-color: #FFFFFF; border: none;")
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        lay = QVBoxLayout(card)
+        lay.setContentsMargins(28, 26, 28, 26)
+        lay.setSpacing(18)
 
-        btn_back = QPushButton(t("topup.back"))
-        btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_back.setStyleSheet("color: white; font-size: 16px; font-weight: bold; background: transparent; border: none;")
-        btn_back.clicked.connect(self.back_clicked.emit)
-        h_lay.addWidget(btn_back)
+        top_row = QHBoxLayout()
+        self.lbl_title = QLabel(t("topup.title_plain"))
+        self.lbl_title.setFont(QFont(AppConfig.FONT_FAMILY, 32, QFont.Weight.Bold))
+        self.lbl_title.setStyleSheet("color: #111;")
+        top_row.addWidget(self.lbl_title)
 
-        lbl_title = QLabel(t("topup.title"))
-        lbl_title.setStyleSheet("color: white; font-size: 22px; font-weight: bold; background: transparent;")
-        lbl_title.setAlignment(Qt.AlignCenter)
-        h_lay.addWidget(lbl_title, 1)
-        h_lay.addSpacing(60)
+        top_row.addStretch()
+        self.lbl_total = QLabel("0 THB")
+        self.lbl_total.setFont(QFont(AppConfig.FONT_FAMILY, 36, QFont.Weight.Bold))
+        self.lbl_total.setStyleSheet("color: #111;")
+        top_row.addWidget(self.lbl_total)
+        lay.addLayout(top_row)
 
-        root.addWidget(header)
+        self.lbl_user = QLabel("-")
+        self.lbl_user.setFont(QFont(AppConfig.FONT_FAMILY, 16))
+        self.lbl_user.setStyleSheet("color: #555;")
+        lay.addWidget(self.lbl_user)
 
-        # ---- Scrollable content ----
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; }")
-        content = QWidget()
-        layout = QVBoxLayout(content)
-        layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(14)
+        rows = [
+            ((10, "#D9B957"), (20, "#66A266"), (50, "#6E7DB8")),
+            ((100, "#D66567"), (500, "#9174AF"), (None, "#3C3C3C")),
+        ]
 
-        # -- ค้นหาผู้ใช้ --
-        search_group = QGroupBox(t("topup.search_group"))
-        search_group.setStyleSheet(self._group_style())
-        s_lay = QHBoxLayout(search_group)
+        for row in rows:
+            row_l = QHBoxLayout()
+            row_l.setSpacing(16)
+            for value, color in row:
+                if value is None:
+                    b = self._make_button(t("topup.del"), color)
+                    b.clicked.connect(self._on_delete)
+                else:
+                    b = self._make_button(str(value), color)
+                    b.clicked.connect(lambda _, amt=value: self._push_amount(amt))
+                row_l.addWidget(b)
+            lay.addLayout(row_l)
 
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText(t("topup.search_hint"))
-        self.search_input.setValidator(QIntValidator(1, 999999))
-        self.search_input.setStyleSheet(self._input_style())
-        self.search_input.returnPressed.connect(self.search_user)
-        s_lay.addWidget(self.search_input)
+        action_row = QHBoxLayout()
+        action_row.setSpacing(20)
 
-        self.btn_search = self._make_btn(t("topup.search_btn"), "#2196F3", width=140)
-        self.btn_search.clicked.connect(self.search_user)
-        s_lay.addWidget(self.btn_search)
+        self.btn_cancel = self._make_button(t("topup.cancel"), "#D74646", height=72)
+        self.btn_cancel.clicked.connect(self.back_clicked.emit)
+        action_row.addWidget(self.btn_cancel)
 
-        layout.addWidget(search_group)
+        self.btn_confirm = self._make_button(t("topup.confirm"), "#8BC34A", text_color="#111", height=72)
+        self.btn_confirm.clicked.connect(self._confirm_topup)
+        action_row.addWidget(self.btn_confirm)
 
-        # -- ข้อมูลผู้ใช้ --
-        info_group = QGroupBox(t("topup.info_group"))
-        info_group.setStyleSheet(self._group_style())
-        info_form = QFormLayout(info_group)
-        info_form.setSpacing(10)
+        lay.addLayout(action_row)
+        root.addWidget(card, 1)
 
-        self.lbl_name = QLabel("—")
-        self.lbl_name.setStyleSheet("font-size: 18px; font-weight: bold;")
-        info_form.addRow(t("topup.name"), self.lbl_name)
+    def set_user(self, user_data: dict):
+        self._found_user = user_data
+        self._amount_stack = []
 
-        self.lbl_uid = QLabel("—")
-        self.lbl_uid.setStyleSheet("font-size: 16px; color: #555;")
-        info_form.addRow(t("topup.uid"), self.lbl_uid)
-
-        self.lbl_balance = QLabel("—")
-        self.lbl_balance.setStyleSheet("font-size: 22px; font-weight: bold; color: #4CAF50;")
-        info_form.addRow(t("topup.balance"), self.lbl_balance)
-
-        layout.addWidget(info_group)
-
-        # -- จำนวนเงิน --
-        topup_group = QGroupBox(t("topup.amount_group"))
-        topup_group.setStyleSheet(self._group_style())
-        t_lay = QVBoxLayout(topup_group)
-
-        quick_lbl = QLabel(t("topup.quick"))
-        quick_lbl.setStyleSheet("font-size: 14px; font-weight: bold; color: #555;")
-        t_lay.addWidget(quick_lbl)
-
-        quick_row = QHBoxLayout()
-        quick_row.setSpacing(10)
-        for amt in [50, 100, 200, 500, 1000]:
-            b = self._make_btn(f"฿{amt}", "#E3F2FD", text_color="#1565C0")
-            b.setFixedHeight(50)
-            b.clicked.connect(lambda _, a=amt: self.topup_input.setText(f"{a:.2f}"))
-            quick_row.addWidget(b)
-        t_lay.addLayout(quick_row)
-
-        custom_row = QHBoxLayout()
-        lbl_c = QLabel(t("topup.custom"))
-        lbl_c.setStyleSheet("font-size: 14px; font-weight: bold;")
-        custom_row.addWidget(lbl_c)
-
-        self.topup_input = QLineEdit()
-        self.topup_input.setPlaceholderText("0.00")
-        self.topup_input.setValidator(QDoubleValidator(1, 999999, 2))
-        self.topup_input.setFixedWidth(200)
-        self.topup_input.setStyleSheet(self._input_style())
-        custom_row.addWidget(self.topup_input)
-        custom_row.addStretch()
-        t_lay.addLayout(custom_row)
-
-        layout.addWidget(topup_group)
-
-        # -- ปุ่มเติมเงิน --
-        self.btn_topup = self._make_btn(t("topup.do"), "#4CAF50")
-        self.btn_topup.setFixedHeight(52)
-        self.btn_topup.setEnabled(False)
-        self.btn_topup.clicked.connect(self.do_topup)
-        layout.addWidget(self.btn_topup)
-
-        # -- ผลลัพธ์ --
-        self.result_label = QLabel("")
-        self.result_label.setAlignment(Qt.AlignCenter)
-        self.result_label.setStyleSheet("font-size: 16px; padding: 8px;")
-        layout.addWidget(self.result_label)
-
-        layout.addStretch()
-        scroll.setWidget(content)
-        root.addWidget(scroll)
-
-    def update_language(self):
-        # update dynamic texts
-        # header
-        # placeholders and button labels
-        # We only created some labels via t() already, so set button texts
-        self.btn_topup.setText(t("topup.do"))
-        self.btn_search.setText(t("topup.search_btn"))
-        self.search_input.setPlaceholderText(t("topup.search_hint"))
-        # group titles are created with t() initially
-    # ================================================================
-    # Logic
-    # ================================================================
-    def search_user(self):
-        uid = self.search_input.text().strip()
-        if not uid:
-            QMessageBox.warning(self, "ข้อมูลไม่ครบ", "กรุณากรอกรหัสผู้ใช้")
+        if not user_data:
+            self.lbl_user.setText("-")
+            self._refresh_total()
             return
 
-        user = self.db.get_user_by_id(uid)
-        if user:
-            self._found_user = user
-            self.lbl_name.setText(user.get("name", "ไม่ทราบ"))
-            self.lbl_uid.setText(str(user.get("user_id", uid)))
-            bal = float(user.get("balance", 0))
-            self.lbl_balance.setText(f"฿{bal:,.2f}")
-            self.btn_topup.setEnabled(True)
-            self.result_label.setText("")
+        user_id = str(user_data.get("user_id", "-"))
+        name = user_data.get("name", "-")
+        balance = float(user_data.get("balance", 0.0))
+        self.lbl_user.setText(f"{name} ({user_id}) • {t('topup.balance_short')}: {balance:,.2f} THB")
+        self._refresh_total()
+
+    def _push_amount(self, amount: int):
+        self._amount_stack.append(float(amount))
+        self._refresh_total()
+
+    def _on_delete(self):
+        if self._amount_stack:
+            self._amount_stack.pop()
+            self._refresh_total()
+
+    def _refresh_total(self):
+        total = int(sum(self._amount_stack))
+        self.lbl_total.setText(f"{total} THB")
+
+    def _confirm_topup(self):
+        if not self._found_user:
+            QMessageBox.warning(self, t("topup.title_plain"), t("topup.err_no_user"))
+            return
+
+        total = float(sum(self._amount_stack))
+        if total <= 0:
+            QMessageBox.warning(self, t("topup.title_plain"), t("topup.err_no_amount"))
+            return
+
+        uid = str(self._found_user.get("user_id", "")).strip()
+        result = self.db.top_up_balance(uid, total)
+        if result.get("success"):
+            new_balance = float(result.get("new_balance", 0.0))
+            self._found_user["balance"] = new_balance
+            self._amount_stack = []
+            self._refresh_total()
+            self.set_user(self._found_user)
+            QMessageBox.information(
+                self,
+                t("topup.title_plain"),
+                t("topup.success", amt=f"{total:,.0f}", bal=f"{new_balance:,.2f}"),
+            )
         else:
-            self._found_user = None
-            self.lbl_name.setText("—")
-            self.lbl_uid.setText("—")
-            self.lbl_balance.setText("—")
-            self.btn_topup.setEnabled(False)
-            QMessageBox.warning(self, "ไม่พบผู้ใช้", f"ไม่พบผู้ใช้รหัส \"{uid}\" ในระบบ")
-
-    def do_topup(self):
-        uid = self.search_input.text().strip()
-        amt_text = self.topup_input.text().strip()
-
-        if not amt_text:
-            QMessageBox.warning(self, "ข้อมูลไม่ครบ", "กรุณากรอกจำนวนเงินที่ต้องการเติม")
-            return
-        try:
-            amount = float(amt_text)
-        except ValueError:
-            QMessageBox.warning(self, "ข้อมูลผิดพลาด", "จำนวนเงินไม่ถูกต้อง")
-            return
-        if amount <= 0:
-            QMessageBox.warning(self, "ข้อมูลผิดพลาด", "จำนวนเงินต้องมากกว่า 0")
-            return
-
-        name = self.lbl_name.text()
-        reply = QMessageBox.question(
-            self, "ยืนยันเติมเงิน",
-            f"เติมเงิน ฿{amount:,.2f} ให้ \"{name}\" ใช่หรือไม่?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-        )
-        if reply != QMessageBox.Yes:
-            return
-
-        try:
-            result = self.db.top_up_balance(uid, amount)
-            if result.get("success"):
-                new_bal = result["new_balance"]
-                self.lbl_balance.setText(f"฿{new_bal:,.2f}")
-                self.topup_input.clear()
-                self.result_label.setText(f"✅  เติมเงินสำเร็จ!  ยอดใหม่: ฿{new_bal:,.2f}")
-                self.result_label.setStyleSheet("font-size: 16px; color: #2E7D32; font-weight: bold; padding: 8px;")
-            else:
-                self.result_label.setText(f"❌  {result.get('error', 'ไม่ทราบสาเหตุ')}")
-                self.result_label.setStyleSheet("font-size: 16px; color: #C62828; font-weight: bold; padding: 8px;")
-        except Exception as e:
-            QMessageBox.critical(self, "ผิดพลาด", str(e))
+            QMessageBox.warning(self, t("topup.title_plain"), result.get("error", t("topup.err_unknown")))
 
     def reset_view(self):
-        """เรียกเมื่อกลับมาหน้านี้ใหม่"""
-        self.search_input.clear()
-        self.topup_input.clear()
-        self.lbl_name.setText("—")
-        self.lbl_uid.setText("—")
-        self.lbl_balance.setText("—")
-        self.btn_topup.setEnabled(False)
-        self.result_label.setText("")
         self._found_user = None
+        self._amount_stack = []
+        self.lbl_user.setText("-")
+        self._refresh_total()
 
-    # ================================================================
-    # Style helpers
-    # ================================================================
-    @staticmethod
-    def _group_style():
-        return """
-            QGroupBox {
-                font-size: 16px; font-weight: bold;
-                border: 2px solid #e0e0e0; border-radius: 10px;
-                margin-top: 12px; padding-top: 16px; background: white;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin; left: 12px; padding: 0 6px; color: #333;
-            }
-        """
+    def update_language(self):
+        self.lbl_title.setText(t("topup.title_plain"))
+        self.btn_cancel.setText(t("topup.cancel"))
+        self.btn_confirm.setText(t("topup.confirm"))
+        if self._found_user:
+            self.set_user(self._found_user)
 
     @staticmethod
-    def _input_style():
-        return """
-            QLineEdit {
-                border: 2px solid #e0e0e0; border-radius: 8px;
-                padding: 10px 14px; font-size: 15px; background: #fafafa;
-            }
-            QLineEdit:focus { border-color: #2196F3; background: white; }
-        """
-
-    @staticmethod
-    def _make_btn(text, color, text_color="white", width=None):
+    def _make_button(text, bg, text_color="white", height=64):
         btn = QPushButton(text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedHeight(44)
-        if width:
-            btn.setFixedWidth(width)
-        btn.setStyleSheet(f"""
+        btn.setMinimumHeight(height)
+        btn.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        btn.setFont(QFont(AppConfig.FONT_FAMILY, 22, QFont.Weight.Medium))
+        btn.setStyleSheet(
+            f"""
             QPushButton {{
-                background-color: {color}; color: {text_color};
-                font-weight: bold; font-size: 15px;
-                border-radius: 10px; border: none; padding: 6px 14px;
+                background-color: {bg};
+                color: {text_color};
+                border: none;
+                border-radius: 8px;
+                padding: 8px 16px;
             }}
-            QPushButton:hover {{ opacity: 0.9; }}
-            QPushButton:disabled {{ background-color: #bdbdbd; color: #eee; }}
-        """)
+            QPushButton:pressed {{ background-color: #2D2D2D; }}
+            """
+        )
         return btn

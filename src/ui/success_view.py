@@ -44,7 +44,7 @@ class SuccessView(QWidget):
             self.lbl_icon.setMovie(self.movie)
             self.movie.start()
         else:
-            print(f"❌ Warning: GIF file not found at {gif_path}")
+            print(f"Warning: GIF file not found at {gif_path}")
             self.lbl_icon.setText("✅")
             self.lbl_icon.setStyleSheet("font-size: 80px; background-color: transparent;")
 

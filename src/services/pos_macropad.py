@@ -30,15 +30,15 @@ class MacroPadListener(QThread):
         self.ser = None
 
     def run(self):
-        print(f"📡 MacroPadListener starting (port={self.port}, baud={self.baud})")
+        print(f"MacroPadListener starting (port={self.port}, baud={self.baud})")
 
         # If auto_detect requested and no explicit port, try to find a tty device
         if self.auto_detect and not self.port:
             self.port = self._auto_detect_port()
             if self.port:
-                print(f"🔎 Auto-detected MacroPad on {self.port}")
+                print(f"Auto-detected MacroPad on {self.port}")
             else:
-                print("⚠️ No MacroPad serial device auto-detected. Will retry periodically.")
+                print("No MacroPad serial device auto-detected. Will retry periodically.")
 
         while self._running:
             if not self.ser:
@@ -46,19 +46,19 @@ class MacroPadListener(QThread):
                     # try autodetect again (print candidate ports for debugging)
                     ports = list(serial.tools.list_ports.comports())
                     if ports:
-                        print("🔍 Candidate serial ports:")
+                        print("Candidate serial ports:")
                         for p in ports:
                             print(f"  - {p.device} ({p.description})")
                     self.port = self._auto_detect_port()
                     if not self.port:
                         time.sleep(self.poll_interval)
                         continue
-                    print(f"🔎 Auto-detected MacroPad on {self.port}")
+                    print(f"Auto-detected MacroPad on {self.port}")
                 try:
                     self.ser = serial.Serial(self.port, self.baud, timeout=1)
-                    print(f"✅ Opened serial {self.port} @ {self.baud}")
+                    print(f"Opened serial {self.port} @ {self.baud}")
                 except Exception as e:
-                    print(f"❌ Failed to open serial {self.port}: {e}")
+                    print(f"Failed to open serial {self.port}: {e}")
                     self.ser = None
                     # reset port if using auto-detect to retry later
                     if self.auto_detect:
@@ -79,9 +79,9 @@ class MacroPadListener(QThread):
                         try:
                             self.payment_received.emit(float(amount))
                         except Exception as e:
-                            print(f"❌ Emit error: {e}")
+                            print(f"Emit error: {e}")
             except Exception as e:
-                print(f"❌ Serial read error: {e}")
+                print(f"Serial read error: {e}")
                 # close serial and try reopen
                 try:
                     self.ser.close()
@@ -96,7 +96,7 @@ class MacroPadListener(QThread):
                 self.ser.close()
             except:
                 pass
-        print("📡 MacroPadListener stopped")
+    print("MacroPadListener stopped")
 
     def stop(self):
         self._running = False
@@ -114,14 +114,14 @@ class MacroPadListener(QThread):
         # Try to extract the first numeric-looking token (allow commas/dots)
         m = re.search(r"[-+]?\d{1,3}(?:[\.,]\d{3})*(?:[\.,]\d+)?|[-+]?\d+(?:[\.,]\d+)?", val)
         if not m:
-            print(f"❌ Invalid amount format from MacroPad: {text}")
+            print(f"Invalid amount format from MacroPad: {text}")
             return None
 
         num_str = m.group(0).replace(',', '.')
         try:
             return float(num_str)
         except ValueError:
-            print(f"❌ Could not parse numeric amount from MacroPad token: {num_str}")
+            print(f"Could not parse numeric amount from MacroPad token: {num_str}")
             return None
 
     def _auto_detect_port(self):

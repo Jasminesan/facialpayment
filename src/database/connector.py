@@ -13,7 +13,7 @@ class DatabaseHandler:
     def connect(self):
         try:
             if not os.path.exists(Config.FIREBASE_KEY_PATH):
-                print(f"❌ [DB ERROR] Key not found at {Config.FIREBASE_KEY_PATH}")
+                print(f"[DB ERROR] Key not found at {Config.FIREBASE_KEY_PATH}")
                 return
 
             if not firebase_admin._apps:
@@ -21,10 +21,10 @@ class DatabaseHandler:
                 firebase_admin.initialize_app(cred)
             
             self.db = firestore.client()
-            print("✅ Firebase Firestore Connected! (Ready)")
+            print("Firebase Firestore Connected! (Ready)")
             
         except Exception as e:
-            print(f"❌ Connection Failed: {e}")
+            print(f"Connection Failed: {e}")
 
     def get_all_active_users(self):
         """ดึง User ทั้งหมด (สำหรับโหลดเข้า FaceMatcher)"""
@@ -40,7 +40,7 @@ class DatabaseHandler:
                     users.append(data)
             return users
         except Exception as e:
-            print(f"❌ Fetch Users Error: {e}")
+            print(f"Fetch Users Error: {e}")
             return []
 
     def get_user_by_id(self, user_id):
@@ -52,7 +52,7 @@ class DatabaseHandler:
                 return doc.to_dict()
             return None
         except Exception as e:
-            print(f"❌ Get User Error: {e}")
+            print(f"Get User Error: {e}")
             return None
 
     def register_user(self, user_id, name, balance, face_vector, pdpa_consent=False, role='user'):
@@ -70,7 +70,7 @@ class DatabaseHandler:
             bool: True ถ้าสำเร็จ, False ถ้ามีข้อผิดพลาด
         """
         if self.db is None:
-            print("❌ [DB] Not connected")
+            print("[DB] Not connected")
             return False
 
         try:
@@ -88,10 +88,10 @@ class DatabaseHandler:
 
             # เขียนทับหรือสร้างใหม่
             self.db.collection("users").document(doc_id).set(data)
-            print(f"✅ User {doc_id} registered/updated.")
+            print(f"User {doc_id} registered/updated.")
             return True
         except Exception as e:
-            print(f"❌ Register User Error: {e}")
+            print(f"Register User Error: {e}")
             return False
 
     def listen_for_updates(self, callback):
@@ -101,7 +101,7 @@ class DatabaseHandler:
         คืนค่า listener registration (callable) ถ้าต้องการยกเลิก
         """
         if self.db is None:
-            print("❌ [DB] Not connected - cannot listen for updates")
+            print("[DB] Not connected - cannot listen for updates")
             return None
 
         try:
@@ -122,14 +122,14 @@ class DatabaseHandler:
                 try:
                     callback(users)
                 except Exception as e:
-                    print(f"❌ Callback Error in listen_for_updates: {e}")
+                    print(f"Callback Error in listen_for_updates: {e}")
 
             # ลงทะเบียน listener
             listener = col_ref.on_snapshot(_on_snapshot)
-            print("✅ Listening for user updates (Firestore)")
+            print("Listening for user updates (Firestore)")
             return listener
         except Exception as e:
-            print(f"❌ listen_for_updates Error: {e}")
+            print(f"listen_for_updates Error: {e}")
             return None
 
     # ==========================================
@@ -181,11 +181,11 @@ class DatabaseHandler:
                 "server_timestamp": firestore.SERVER_TIMESTAMP,
             })
 
-            print(f"✅ เติมเงิน {amount:.2f} ให้ user {clean_id} สำเร็จ  ยอดใหม่: {new_balance:.2f}")
+            print(f"เติมเงิน {amount:.2f} ให้ user {clean_id} สำเร็จ  ยอดใหม่: {new_balance:.2f}")
             return {"success": True, "new_balance": new_balance}
 
         except Exception as e:
-            print(f"❌ Top-up Error: {e}")
+            print(f"Top-up Error: {e}")
             return {"success": False, "error": str(e)}
 
     # ==========================================
@@ -202,7 +202,7 @@ class DatabaseHandler:
         
         if not snapshot.exists:
             # 🚨 จุดตาย: ถ้า User ID ผิด จะเด้งตรงนี้
-            print(f"😱 [CRITICAL ERROR] ไม่พบ User ID: '{user_ref.id}' ใน Database!")
+            print(f"[CRITICAL ERROR] ไม่พบ User ID: '{user_ref.id}' ใน Database!")
             raise Exception(f"User ID '{user_ref.id}' not found")
 
         user_data = snapshot.to_dict()
@@ -214,7 +214,7 @@ class DatabaseHandler:
         except ValueError:
             raise Exception("ข้อมูลยอดเงินใน Database ผิดพลาด (ไม่ใช่ตัวเลข)")
 
-        print(f"💰 [DEBUG] เงินที่มี: {current_balance:.2f} | ต้องจ่าย: {amount:.2f}")
+        print(f"[DEBUG] เงินที่มี: {current_balance:.2f} | ต้องจ่าย: {amount:.2f}")
 
         # 3. เช็คเงินพอไหม
         if current_balance < amount:
@@ -253,7 +253,7 @@ class DatabaseHandler:
 
         # 🔍 DEBUG LOG: ดูว่าหน้าจอส่งอะไรมา
         print("\n" + "="*40)
-        print(f"🚀 [START PAYMENT] User ID: {user_id}, Amount: {amount}")
+        print(f"[START PAYMENT] User ID: {user_id}, Amount: {amount}")
         
         try:
             # แปลง ID เป็น String และลบช่องว่าง (กันเหนียว)
@@ -272,13 +272,13 @@ class DatabaseHandler:
                 items
             )
             
-            print(f"✅ [SUCCESS] ตัดเงินสำเร็จ! New Balance: {result_data['new_balance']}")
+            print(f"[SUCCESS] ตัดเงินสำเร็จ! New Balance: {result_data['new_balance']}")
             print("="*40 + "\n")
             
             # ส่ง Dictionary กลับไปให้ UI (ห้ามส่ง Tuple)
             return result_data
 
         except Exception as e:
-            print(f"❌ [FAILED] เกิดข้อผิดพลาด: {e}")
+            print(f"[FAILED] เกิดข้อผิดพลาด: {e}")
             print("="*40 + "\n")
             return {"success": False, "error": str(e)}

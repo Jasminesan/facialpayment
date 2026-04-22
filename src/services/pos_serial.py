@@ -14,7 +14,7 @@ class SerialListener(QThread):
         self.server_socket = None
 
     def run(self):
-        print(f"📡 Waiting for Wi-Fi Payment on Port {self.port}...")
+        print(f"Waiting for Wi-Fi Payment on Port {self.port}...")
         
         try:
             self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -39,13 +39,13 @@ class SerialListener(QThread):
                                     amount = float(text.split(":")[1])
                                     self.payment_received.emit(amount)
                                 except ValueError:
-                                    print("❌ Invalid Amount Format")
+                                    print("Invalid Amount Format")
                 except OSError:
                     # กรณี Socket ถูกปิด
                     break
                     
         except Exception as e:
-            print(f"❌ Socket Error: {e}")
+            print(f"Socket Error: {e}")
         finally:
             self.stop()
 

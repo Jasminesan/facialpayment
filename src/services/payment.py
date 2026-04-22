@@ -22,11 +22,11 @@ class PaymentService:
                 items
             )
             
-            print(f"✅ Payment Success! Txn ID: {result['receipt']['transaction_id']}")
+            print(f"Payment Success! Txn ID: {result['receipt']['transaction_id']}")
             return True, result
 
         except Exception as e:
-            print(f"❌ Payment Failed: {e}")
+            print(f"Payment Failed: {e}")
             return False, str(e)
 
     @staticmethod

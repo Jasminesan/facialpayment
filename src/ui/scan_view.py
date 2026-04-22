@@ -109,24 +109,28 @@ class ScanView(QWidget):
     
     
 
-    def start_scanning(self):
+    def start_scanning(self, timeout_ms=15000):
         self.lbl_status.setText(t("scan.scanning"))
         self.lbl_hint.setText(t("scan.look_camera"))
         self.loading_circle.start_anim()
-        self.is_scanning = True 
+        self.is_scanning = True
 
         try:
-            try: self.camera.frame_received.disconnect(self.update_video)
-            except: pass
-            try: self.camera.face_detected.disconnect(self.check_face)
-            except: pass
+            try:
+                self.camera.frame_received.disconnect(self.update_video)
+            except Exception:
+                pass
+            try:
+                self.camera.face_detected.disconnect(self.check_face)
+            except Exception:
+                pass
 
             self.camera.frame_received.connect(self.update_video)
             self.camera.face_detected.connect(self.check_face)
         except Exception as e:
             print(f"Connection Error: {e}")
 
-        self.timeout_timer.start(15000)
+        self.timeout_timer.start(timeout_ms)
 
     def stop_scanning(self):
         self.is_scanning = False 

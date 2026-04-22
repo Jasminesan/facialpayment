@@ -57,9 +57,31 @@ TEXTS = {
 
     # ---- Settings ----
     "settings.title":       {"THA": "⚙  ตั้งค่า",            "ENG": "⚙  Settings"},
+    "settings.title_plain": {"THA": "Settings",             "ENG": "Settings"},
+    "settings.section":     {"THA": "Setting",              "ENG": "Setting"},
     "settings.language":    {"THA": "ภาษา",                  "ENG": "Language"},
     "settings.back":        {"THA": "◀  กลับ",               "ENG": "◀  Back"},
+    "settings.back_plain":  {"THA": "BACK",                 "ENG": "BACK"},
+    "settings.pin":         {"THA": "PIN",                  "ENG": "PIN"},
     "settings.admin":       {"THA": "ผู้ดูแล",               "ENG": "Admin"},
+
+    # ---- PIN ----
+    "pin.section":          {"THA": "pin",                  "ENG": "pin"},
+    "pin.title":            {"THA": "PIN",                  "ENG": "PIN"},
+    "pin.del":              {"THA": "DEL",                  "ENG": "DEL"},
+    "pin.ok":               {"THA": "OK",                   "ENG": "OK"},
+    "pin.back":             {"THA": "BACK",                 "ENG": "BACK"},
+    "pin.err_empty":        {"THA": "กรุณากรอก PIN",        "ENG": "Please enter PIN"},
+    "pin.err_invalid":      {"THA": "PIN ไม่ถูกต้อง",       "ENG": "Invalid PIN"},
+    "pin.err_limit":        {"THA": "กรอก PIN ผิดเกิน 5 ครั้ง กลับหน้า Home",
+                               "ENG": "PIN failed over 5 attempts. Returning to Home."},
+
+    # ---- Settings DEV ----
+    "settings_dev.section": {"THA": "Setting_DEV",          "ENG": "Setting_DEV"},
+    "settings_dev.title":   {"THA": "Settings",             "ENG": "Settings"},
+    "settings_dev.register":{"THA": "REGISTER",             "ENG": "REGISTER"},
+    "settings_dev.topup":   {"THA": "TOP-UP",               "ENG": "TOP-UP"},
+    "settings_dev.back":    {"THA": "BACK",                 "ENG": "BACK"},
 
     # ---- Register ----
     "reg.title":            {"THA": "📝  ลงทะเบียนผู้ใช้ใหม่", "ENG": "📝  Register New User"},
@@ -87,6 +109,8 @@ TEXTS = {
 
     # ---- Top-up ----
     "topup.title":          {"THA": "💰  เติมเงิน",           "ENG": "💰  Top Up"},
+    "topup.title_plain":    {"THA": "TOP-UP",               "ENG": "TOP-UP"},
+    "topup.section":        {"THA": "TOP-UP",               "ENG": "TOP-UP"},
     "topup.back":           {"THA": "◀  กลับ",               "ENG": "◀  Back"},
     "topup.search_group":   {"THA": "🔎  ค้นหาผู้ใช้",        "ENG": "🔎  Search User"},
     "topup.search_hint":    {"THA": "กรอกรหัสผู้ใช้ (User ID)","ENG": "Enter User ID"},
@@ -99,6 +123,15 @@ TEXTS = {
     "topup.quick":          {"THA": "เลือกจำนวนเงินด่วน :",   "ENG": "Quick amounts :"},
     "topup.custom":         {"THA": "หรือกรอกจำนวนเอง :",     "ENG": "Or enter amount :"},
     "topup.do":             {"THA": "💰  เติมเงิน",           "ENG": "💰  Top Up"},
+    "topup.del":            {"THA": "Del",                  "ENG": "Del"},
+    "topup.cancel":         {"THA": "CANCEL",               "ENG": "CANCEL"},
+    "topup.confirm":        {"THA": "CONFIRM",              "ENG": "CONFIRM"},
+    "topup.balance_short":  {"THA": "ยอดคงเหลือ",            "ENG": "Balance"},
+    "topup.err_no_user":    {"THA": "ไม่พบข้อมูลผู้ใช้สำหรับเติมเงิน", "ENG": "No user selected for top-up"},
+    "topup.err_no_amount":  {"THA": "กรุณาเลือกจำนวนเงิน",     "ENG": "Please select amount"},
+    "topup.err_unknown":    {"THA": "เกิดข้อผิดพลาดไม่ทราบสาเหตุ", "ENG": "Unknown error"},
+    "topup.success":        {"THA": "เติมเงิน {amt} THB สำเร็จ\nยอดใหม่: {bal} THB",
+                               "ENG": "Top-up {amt} THB completed\nNew balance: {bal} THB"},
 }
 
 

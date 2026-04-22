@@ -15,14 +15,14 @@ class PaymentWorker(QThread):
 
     def run(self):
         try:
-            print(f"🔄 Worker: กำลังตัดเงิน {self.user_id}...")
+            print(f"Worker: กำลังตัดเงิน {self.user_id}...")
             result = self.db.process_payment(self.user_id, self.amount)
             if result.get("success"):
                 self.finished.emit(True, result)
             else:
                 self.finished.emit(False, result.get("error", "Unknown Error"))
         except Exception as e:
-            print(f"❌ Worker Error: {e}")
+            print(f"Worker Error: {e}")
             self.finished.emit(False, str(e))
 
 
@@ -120,7 +120,7 @@ class ConfirmView(QWidget):
         self.btn_ok.setEnabled(False)
         self.btn_ok.setText(t("confirm.processing"))
         
-        print(f"💰 Starting Thread for: {self.payment_amount} THB")
+        print(f"Starting Thread for: {self.payment_amount} THB")
 
         self.worker = PaymentWorker(self.db, self.current_user_id, self.payment_amount)
         self.worker.finished.connect(self.handle_payment_result)
@@ -131,7 +131,7 @@ class ConfirmView(QWidget):
         self.btn_ok.setText(t("confirm.ok"))
 
         if is_success:
-            print("✅ Payment Success (Thread)!")
+            print("Payment Success (Thread)!")
             receipt = {
                 "user_name": result_data.get("user_name", self.lbl_name.text()),
                 "amount": self.payment_amount
@@ -142,7 +142,7 @@ class ConfirmView(QWidget):
             }
             self.payment_success.emit(final_data)
         else:
-            print(f"❌ Payment Failed: {result_data}")
+            print(f"Payment Failed: {result_data}")
             QMessageBox.critical(self, t("confirm.fail_title"), f"เกิดข้อผิดพลาด: {result_data}")
 
     def update_language(self):

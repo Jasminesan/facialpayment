@@ -1,4 +1,4 @@
-from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QFrame, QSizePolicy
 from PySide6.QtGui import QFont
 from PySide6.QtCore import Qt, Signal
 from ui.ui_config import AppConfig, t, get_lang
@@ -6,54 +6,42 @@ from ui.ui_config import AppConfig, t, get_lang
 class SettingsView(QWidget):
     back_clicked = Signal()
     language_changed = Signal(str)
-    register_clicked = Signal()
-    topup_clicked = Signal()
+    pin_clicked = Signal()
 
     def __init__(self):
         super().__init__()
         self.init_ui()
 
     def init_ui(self):
-        self.setStyleSheet(f"background-color: {AppConfig.COLOR_BG_MAIN}; color: {AppConfig.COLOR_TEXT_MAIN};")
+        self.setStyleSheet("background-color: #FFFFFF;")
         
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(40, 40, 40, 40)
-        layout.setSpacing(20)
+        layout.setContentsMargins(64, 48, 64, 48)
+        layout.setSpacing(18)
 
-        # หัวข้อ + ปุ่ม Admin
-        top_row = QHBoxLayout()
-        self.lbl_title = QLabel(t("settings.title"))
-        self.lbl_title.setFont(QFont(AppConfig.FONT_FAMILY, 32, QFont.Weight.Bold))
-        self.lbl_title.setStyleSheet("background-color: transparent;")
-        top_row.addWidget(self.lbl_title)
-        top_row.addStretch()
-        # Visible Admin toggle/button
-        self.btn_admin = QPushButton(t("settings.admin"))
-        self.btn_admin.setFlat(True)
-        self.btn_admin.setFont(QFont(AppConfig.FONT_FAMILY, 16))
-        self.btn_admin.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_admin.setStyleSheet("color: #444444; background-color: transparent;")
-        self.btn_admin.clicked.connect(self._toggle_admin)
-        top_row.addWidget(self.btn_admin)
-        layout.addLayout(top_row)
+        card = QFrame()
+        card.setStyleSheet("background-color: #FFFFFF; border: none;")
+        card.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(36, 30, 36, 30)
+        card_layout.setSpacing(22)
 
-        line = QFrame()
-        line.setFrameShape(QFrame.Shape.HLine)
-        line.setStyleSheet("color: #CCCCCC;")
-        layout.addWidget(line)
+        self.lbl_title = QLabel(t("settings.title_plain"))
+        self.lbl_title.setFont(QFont(AppConfig.FONT_FAMILY, 30, QFont.Weight.Bold))
+        self.lbl_title.setStyleSheet("color: #111; background: transparent;")
+        card_layout.addWidget(self.lbl_title)
 
-        layout.addSpacing(20)
-        # Language panel (hidden when admin-mode shows register/topup)
         self.lang_container = QWidget()
         lang_v = QVBoxLayout(self.lang_container)
         lang_v.setContentsMargins(0, 0, 0, 0)
+        lang_v.setSpacing(12)
         self.lbl_lang = QLabel(t("settings.language"))
-        self.lbl_lang.setFont(QFont(AppConfig.FONT_FAMILY, 24))
-        self.lbl_lang.setStyleSheet("background-color: transparent;")
+        self.lbl_lang.setFont(QFont(AppConfig.FONT_FAMILY, 22))
+        self.lbl_lang.setStyleSheet("color: #111; background-color: transparent;")
         lang_v.addWidget(self.lbl_lang)
 
         lang_layout = QHBoxLayout()
-        lang_layout.setSpacing(30)
+        lang_layout.setSpacing(20)
         lang_layout.setAlignment(Qt.AlignmentFlag.AlignLeft)
 
         self.btn_eng = self.create_lang_btn("ENG", active=(get_lang() == 'ENG'))
@@ -65,90 +53,98 @@ class SettingsView(QWidget):
         lang_layout.addWidget(self.btn_eng)
         lang_layout.addWidget(self.btn_tha)
         lang_v.addLayout(lang_layout)
-        layout.addWidget(self.lang_container)
+        card_layout.addWidget(self.lang_container)
 
-        # Admin action container (register / top-up) - hidden by default
-        self.admin_container = QWidget()
-        admin_layout = QHBoxLayout(self.admin_container)
-        admin_layout.setSpacing(60)
-        admin_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.addStretch()
 
-        self.btn_register_big = QPushButton("REGISTER")
-        self.btn_register_big.setFont(QFont(AppConfig.FONT_FAMILY, 28, QFont.Weight.Bold))
-        self.btn_register_big.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_register_big.setStyleSheet("background: transparent; border: none; color: black;")
-        self.btn_register_big.clicked.connect(self.register_clicked.emit)
+        bottom_row = QHBoxLayout()
+        bottom_row.setContentsMargins(0, 0, 0, 0)
+        bottom_row.setSpacing(12)
 
-        self.btn_topup_big = QPushButton("TOP-UP")
-        self.btn_topup_big.setFont(QFont(AppConfig.FONT_FAMILY, 28, QFont.Weight.Bold))
-        self.btn_topup_big.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_topup_big.setStyleSheet("background: transparent; border: none; color: black;")
-        self.btn_topup_big.clicked.connect(self.topup_clicked.emit)
+        self.btn_pin = QPushButton(t("settings.pin"))
+        self.btn_pin.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_pin.setMinimumHeight(52)
+        self.btn_pin.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
+        self.btn_pin.setFont(QFont(AppConfig.FONT_FAMILY, 24))
+        self.btn_pin.setStyleSheet(
+            """
+            QPushButton {
+                color: #111;
+                background: transparent;
+                border: none;
+                text-align: left;
+            }
+            QPushButton:pressed { color: #444; }
+            """
+        )
+        self.btn_pin.clicked.connect(self.pin_clicked.emit)
+        bottom_row.addWidget(self.btn_pin)
+        bottom_row.addStretch()
 
-        admin_layout.addWidget(self.btn_register_big)
-        admin_layout.addStretch()
-        admin_layout.addWidget(self.btn_topup_big)
-        self.admin_container.setVisible(False)
-        layout.addWidget(self.admin_container)
+        self.btn_back = QPushButton(t("settings.back_plain"))
+        self.btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_back.setMinimumHeight(52)
+        self.btn_back.setSizePolicy(QSizePolicy.Policy.MinimumExpanding, QSizePolicy.Policy.Fixed)
+        self.btn_back.setFont(QFont(AppConfig.FONT_FAMILY, 22))
+        self.btn_back.setStyleSheet(
+            """
+            QPushButton {
+                color: #111;
+                background: transparent;
+                border: none;
+                text-align: right;
+            }
+            QPushButton:pressed { color: #444; }
+            """
+        )
+        self.btn_back.clicked.connect(self.back_clicked.emit)
+        bottom_row.addWidget(self.btn_back)
+        card_layout.addLayout(bottom_row)
 
+        layout.addWidget(card, 1)
         layout.addStretch()
 
-        btn_back_layout = QHBoxLayout()
-        btn_back_layout.addStretch()
-        
-        self.btn_back = QPushButton(t("settings.back"))
-        self.btn_back.setFlat(True)
-        self.btn_back.setFont(QFont(AppConfig.FONT_FAMILY, 20))
-        self.btn_back.setStyleSheet(f"color: {AppConfig.COLOR_TEXT_MAIN}; text-align: right; background-color: transparent;")
-        self.btn_back.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_back.clicked.connect(self.back_clicked.emit)
-        
-        btn_back_layout.addWidget(self.btn_back)
-        layout.addLayout(btn_back_layout)
-
     def update_language(self):
-        self.lbl_title.setText(t("settings.title"))
+        self.lbl_title.setText(t("settings.title_plain"))
         self.lbl_lang.setText(t("settings.language"))
-        if hasattr(self, 'btn_admin'):
-            self.btn_admin.setText(t("settings.admin"))
-        if hasattr(self, 'btn_register_big'):
-            self.btn_register_big.setText(t("home.register"))
-        if hasattr(self, 'btn_topup_big'):
-            self.btn_topup_big.setText(t("home.topup"))
-        self.btn_back.setText(t("settings.back"))
-        # Update language button styles according to current language
-        # Caller (MainWindow) will call set_lang() globally, and this emits language_changed
+        self.btn_pin.setText(t("settings.pin"))
+        self.btn_back.setText(t("settings.back_plain"))
 
     def create_lang_btn(self, text, active=False):
         btn = QPushButton(text)
-        btn.setFixedSize(100, 50)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setMinimumSize(120, 56)
+        btn.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         btn.setFont(QFont(AppConfig.FONT_FAMILY, 18, QFont.Weight.Bold if active else QFont.Weight.Normal))
         self.update_btn_style(btn, active)
         return btn
 
     def update_btn_style(self, btn, active):
         if active:
-            btn.setStyleSheet(f"color: {AppConfig.COLOR_BTN_GREEN}; border: 2px solid {AppConfig.COLOR_BTN_GREEN}; border-radius: 8px; background-color: #F1F8E9;")
+            btn.setStyleSheet(
+                """
+                QPushButton {
+                    color: white;
+                    border: none;
+                    border-radius: 8px;
+                    background-color: #6B6B6B;
+                }
+                """
+            )
         else:
-            btn.setStyleSheet("color: #888888; border: none; background-color: transparent;")
+            btn.setStyleSheet(
+                """
+                QPushButton {
+                    color: #111;
+                    border: none;
+                    border-radius: 8px;
+                    background-color: transparent;
+                }
+                """
+            )
 
     def set_language(self, lang):
         is_eng = (lang == "ENG")
         self.update_btn_style(self.btn_eng, is_eng)
         self.update_btn_style(self.btn_tha, not is_eng)
         self.language_changed.emit(lang)
-
-    def set_admin_mode(self, enabled: bool):
-        """Show large REGISTER / TOP-UP when enabled. Hide language controls."""
-        self.admin_container.setVisible(enabled)
-        self.lang_container.setVisible(not enabled)
-
-    def _toggle_admin(self):
-        """Toggle admin container visibility from the visible Admin button."""
-        try:
-            cur = self.admin_container.isVisible()
-            # show admin actions and hide language controls when enabled
-            self.admin_container.setVisible(not cur)
-            self.lang_container.setVisible(cur)
-        except Exception:
-            pass
