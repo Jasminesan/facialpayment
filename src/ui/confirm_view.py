@@ -82,12 +82,12 @@ class ConfirmView(QWidget):
 
         self.btn_ok = QPushButton(t("confirm.ok"))
         self.btn_ok.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_ok.setStyleSheet(f"background-color: {AppConfig.COLOR_BTN_GREEN}; color: white; font-weight: bold; padding: 10px; border-radius: 5px; font-size: 16px;")
+        self.btn_ok.setStyleSheet(f"background-color: {AppConfig.COLOR_BTN_GREEN}; color: white; font-weight: bold; padding: 30px; border-radius: 5px; font-size: 16px;")
         self.btn_ok.clicked.connect(self.start_payment_thread)
 
         self.btn_cancel = QPushButton(t("confirm.cancel"))
         self.btn_cancel.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_cancel.setStyleSheet(f"background-color: {AppConfig.COLOR_BTN_RED}; color: white; font-weight: bold; padding: 10px; border-radius: 5px; font-size: 16px;")
+        self.btn_cancel.setStyleSheet(f"background-color: {AppConfig.COLOR_BTN_RED}; color: white; font-weight: bold; padding: 30px; border-radius: 5px; font-size: 16px;")
         self.btn_cancel.clicked.connect(self.cancel_clicked.emit)
 
         btn_layout.addWidget(self.btn_ok)

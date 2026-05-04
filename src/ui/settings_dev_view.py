@@ -4,7 +4,6 @@ from PySide6.QtCore import Qt, Signal
 
 from ui.ui_config import AppConfig, t
 
-
 class SettingsDevView(QWidget):
     register_clicked = Signal()
     topup_clicked = Signal()
