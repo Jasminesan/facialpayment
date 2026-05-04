@@ -7,6 +7,7 @@ from ui.ui_config import AppConfig, t
 
 class TopUpView(QWidget):
     back_clicked = Signal()
+    topup_success = Signal(str, float)  # user_name, new_balance
 
     def __init__(self, db):
         super().__init__()
@@ -124,11 +125,8 @@ class TopUpView(QWidget):
             self._amount_stack = []
             self._refresh_total()
             self.set_user(self._found_user)
-            QMessageBox.information(
-                self,
-                t("topup.title_plain"),
-                t("topup.success", amt=f"{total:,.0f}", bal=f"{new_balance:,.2f}"),
-            )
+            user_name = str(self._found_user.get("name", "Unknown")).strip()
+            self.topup_success.emit(user_name, new_balance)
         else:
             QMessageBox.warning(self, t("topup.title_plain"), result.get("error", t("topup.err_unknown")))
 

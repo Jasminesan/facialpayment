@@ -132,6 +132,7 @@ TEXTS = {
     "topup.err_unknown":    {"THA": "เกิดข้อผิดพลาดไม่ทราบสาเหตุ", "ENG": "Unknown error"},
     "topup.success":        {"THA": "เติมเงิน {amt} THB สำเร็จ\nยอดใหม่: {bal} THB",
                                "ENG": "Top-up {amt} THB completed\nNew balance: {bal} THB"},
+    "topup.success_title":  {"THA": "เติมเงินสำเร็จ",      "ENG": "Top-up Successful"},
 }
 
 

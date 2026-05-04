@@ -134,6 +134,7 @@ class MainWindow(QMainWindow):
 
         # TopUp -> Settings DEV
         self.view_topup.back_clicked.connect(lambda: self.switch_to(self.view_settings_dev))
+        self.view_topup.topup_success.connect(self.on_topup_success)
 
         # Scan Logic
         self.view_scan.scanned_success.connect(self.on_scan_success)
@@ -288,6 +289,14 @@ class MainWindow(QMainWindow):
         self.current_bill_amount = 0.0
         
         self.view_success.set_payment_details(user_name, new_balance)
+        self.switch_to(self.view_success)
+
+    def on_topup_success(self, user_name: str, new_balance: float):
+        """เมื่อเติมเงินสำเร็จ"""
+        print(f"เติมเงินสำเร็จ: {user_name}, ยอด: {new_balance}")
+        
+        # เรียกใช้ success view แต่ให้แสดง topup message
+        self.view_success.set_topup_details(user_name, new_balance)
         self.switch_to(self.view_success)
 
     def on_language_changed(self, lang):

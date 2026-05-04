@@ -11,7 +11,8 @@ class SuccessView(QWidget):
     def __init__(self):
         super().__init__()
         
-        self.movie = None 
+        self.movie = None
+        self.mode = "payment"  # "payment" or "topup"
         
         self.init_ui()
         
@@ -74,6 +75,21 @@ class SuccessView(QWidget):
         self.setLayout(layout)
 
     def set_payment_details(self, name, new_balance):
+        self.mode = "payment"
+        self.lbl_title.setText(t("success.title"))
+        self.lbl_name.setText(name)
+        self.lbl_balance.setText(t("success.balance", bal=f"{new_balance:,.2f}"))
+        
+        if self.movie:
+            self.movie.jumpToFrame(0)
+            self.movie.start()
+            
+        self.timer.start(2000)
+
+    def set_topup_details(self, name, new_balance):
+        """สำหรับ TOP-UP: แสดงข้อความ 'เติมเงินสำเร็จ'"""
+        self.mode = "topup"
+        self.lbl_title.setText(t("topup.success_title"))
         self.lbl_name.setText(name)
         self.lbl_balance.setText(t("success.balance", bal=f"{new_balance:,.2f}"))
         
