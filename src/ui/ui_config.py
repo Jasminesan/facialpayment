@@ -18,15 +18,15 @@ class AppConfig:
 # ============================================================
 # ระบบสองภาษา (TH / EN)
 # ============================================================
-_CURRENT_LANG = "ENG"
+_CURRENT_LANG = "THA"
 
 TEXTS = {
     # ---- Home ----
     "home.settings":        {"THA": "⚙  ตั้งค่า",            "ENG": "⚙  Settings"},
-    "home.waiting":         {"THA": "📡  รอรับค่าจาก POS เพื่อชำระเงิน",
-                             "ENG": "📡  Waiting for POS to process payment"},
-    "home.register":        {"THA": "📝\nลงทะเบียน",         "ENG": "📝\nRegister"},
-    "home.topup":           {"THA": "💰\nเติมเงิน",          "ENG": "💰\nTop Up"},
+    "home.waiting":         {"THA": "รอรับค่าจาก POS เพื่อชำระเงิน",
+                             "ENG": "Waiting for POS to process payment"},
+    "home.register":        {"THA": "ลงทะเบียน",         "ENG": "Register"},
+    "home.topup":           {"THA": "เติมเงิน",          "ENG": "Top Up"},
 
     # ---- Scan ----
     "scan.waiting":         {"THA": "กรุณารอสักครู่...",       "ENG": "Please wait..."},
@@ -43,9 +43,9 @@ TEXTS = {
     "confirm.loading":      {"THA": "กำลังโหลด...",          "ENG": "Loading..."},
     "confirm.balance":      {"THA": "ยอดเงินคงเหลือ",        "ENG": "Total Balance"},
     "confirm.amount":       {"THA": "ยอดที่ต้องชำระ",         "ENG": "Payment Amount"},
-    "confirm.ok":           {"THA": "✅  ยืนยันชำระเงิน",     "ENG": "✅  Confirm Pay"},
-    "confirm.cancel":       {"THA": "❌  ยกเลิก",            "ENG": "❌  Cancel"},
-    "confirm.processing":   {"THA": "⏳  กำลังดำเนินการ...",  "ENG": "⏳  Processing..."},
+    "confirm.ok":           {"THA": "ยืนยันชำระเงิน",     "ENG": "Confirm Pay"},
+    "confirm.cancel":       {"THA": "ยกเลิก",            "ENG": "Cancel"},
+    "confirm.processing":   {"THA": "กำลังดำเนินการ...",  "ENG": "Processing..."},
     "confirm.fail_title":   {"THA": "ชำระเงินล้มเหลว",       "ENG": "Payment Failed"},
 
     # ---- Success ----
@@ -84,18 +84,18 @@ TEXTS = {
     "settings_dev.back":    {"THA": "BACK",                 "ENG": "BACK"},
 
     # ---- Register ----
-    "reg.title":            {"THA": "📝  ลงทะเบียนผู้ใช้ใหม่", "ENG": "📝  Register New User"},
+    "reg.title":            {"THA": "ลงทะเบียนผู้ใช้ใหม่", "ENG": "Register New User"},
     "reg.back":             {"THA": "◀  กลับ",               "ENG": "◀  Back"},
-    "reg.cam_group":        {"THA": "📷  สแกนใบหน้า",         "ENG": "📷  Face Scan"},
+    "reg.cam_group":        {"THA": "สแกนใบหน้า",         "ENG": "Face Scan"},
     "reg.cam_wait":         {"THA": "กำลังเชื่อมต่อกล้อง...",   "ENG": "Connecting camera..."},
     "reg.searching":        {"THA": "🔍  กำลังค้นหาใบหน้า...", "ENG": "🔍  Searching for face..."},
-    "reg.found":            {"THA": "✅  ตรวจพบใบหน้าแล้ว — พร้อมบันทึก",
-                             "ENG": "✅  Face detected — Ready to save"},
-    "reg.form_group":       {"THA": "📋  ข้อมูลผู้ใช้",        "ENG": "📋  User Info"},
+    "reg.found":            {"THA": "ตรวจพบใบหน้าแล้ว — พร้อมบันทึก",
+                             "ENG": "Face detected — Ready to save"},
+    "reg.form_group":       {"THA": "ข้อมูลผู้ใช้",        "ENG": "User Info"},
     "reg.uid":              {"THA": "รหัสผู้ใช้ :",             "ENG": "User ID :"},
     "reg.name":             {"THA": "ชื่อ :",                  "ENG": "Name :"},
     "reg.balance":          {"THA": "ยอดเงินเริ่มต้น :",       "ENG": "Initial Balance :"},
-    "reg.pdpa_group":       {"THA": "🔒  ความยินยอม PDPA",    "ENG": "🔒  PDPA Consent"},
+    "reg.pdpa_group":       {"THA": "ความยินยอม PDPA",    "ENG": "PDPA Consent"},
     "reg.pdpa_info":        {"THA": "ระบบจะจัดเก็บเฉพาะเวกเตอร์ตัวเลขของใบหน้า (Face Embedding)\n"
                                     "ไม่มีการบันทึกรูปภาพใบหน้า  ข้อมูลใช้เพื่อยืนยันตัวตนในการชำระเงินเท่านั้น\n"
                                     "ท่านสามารถขอลบข้อมูลได้ตลอดเวลา",
@@ -108,21 +108,21 @@ TEXTS = {
     "reg.clear":            {"THA": "🔄  ล้างข้อมูล",         "ENG": "🔄  Clear"},
 
     # ---- Top-up ----
-    "topup.title":          {"THA": "💰  เติมเงิน",           "ENG": "💰  Top Up"},
+    "topup.title":          {"THA": "เติมเงิน",           "ENG": "op Up"},
     "topup.title_plain":    {"THA": "TOP-UP",               "ENG": "TOP-UP"},
     "topup.section":        {"THA": "TOP-UP",               "ENG": "TOP-UP"},
     "topup.back":           {"THA": "◀  กลับ",               "ENG": "◀  Back"},
-    "topup.search_group":   {"THA": "🔎  ค้นหาผู้ใช้",        "ENG": "🔎  Search User"},
+    "topup.search_group":   {"THA": "ค้นหาผู้ใช้",        "ENG": "Search User"},
     "topup.search_hint":    {"THA": "กรอกรหัสผู้ใช้ (User ID)","ENG": "Enter User ID"},
-    "topup.search_btn":     {"THA": "🔍  ค้นหา",             "ENG": "🔍  Search"},
-    "topup.info_group":     {"THA": "👤  ข้อมูลผู้ใช้",        "ENG": "👤  User Info"},
+    "topup.search_btn":     {"THA": "ค้นหา",             "ENG": "Search"},
+    "topup.info_group":     {"THA": "ข้อมูลผู้ใช้",        "ENG": "User Info"},
     "topup.name":           {"THA": "ชื่อ :",                  "ENG": "Name :"},
     "topup.uid":            {"THA": "รหัสผู้ใช้ :",             "ENG": "User ID :"},
     "topup.balance":        {"THA": "ยอดเงินคงเหลือ :",       "ENG": "Current Balance :"},
-    "topup.amount_group":   {"THA": "💳  เติมเงิน",           "ENG": "💳  Top Up"},
+    "topup.amount_group":   {"THA": "เติมเงิน",           "ENG": "Top Up"},
     "topup.quick":          {"THA": "เลือกจำนวนเงินด่วน :",   "ENG": "Quick amounts :"},
     "topup.custom":         {"THA": "หรือกรอกจำนวนเอง :",     "ENG": "Or enter amount :"},
-    "topup.do":             {"THA": "💰  เติมเงิน",           "ENG": "💰  Top Up"},
+    "topup.do":             {"THA": "เติมเงิน",           "ENG": "Top Up"},
     "topup.del":            {"THA": "Del",                  "ENG": "Del"},
     "topup.cancel":         {"THA": "CANCEL",               "ENG": "CANCEL"},
     "topup.confirm":        {"THA": "CONFIRM",              "ENG": "CONFIRM"},
