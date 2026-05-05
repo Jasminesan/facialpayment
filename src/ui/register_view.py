@@ -81,22 +81,24 @@ class RegisterView(QWidget):
         self.uid_display.setAlignment(Qt.AlignCenter)
         self.uid_display.setStyleSheet("""
             QLabel {
-                font-size: 48px; font-weight: bold; color: #4CAF50;
+                font-size: 64px; font-weight: bold; color: #4CAF50;
                 background: #f5f5f5; border: 3px solid #e0e0e0;
-                border-radius: 10px; padding: 20px;
+                border-radius: 10px; padding: 30px;
                 font-family: monospace;
             }
         """)
+        self.uid_display.setMinimumHeight(120)
         uid_layout.addWidget(self.uid_display)
 
         # Keypad (1-9, 0, DEL, OK)
         keypad_layout = QVBoxLayout()
-        keypad_layout.setSpacing(10)
+        keypad_layout.setSpacing(16)
+        keypad_layout.setContentsMargins(20, 20, 20, 20)
 
         # Row 1-3: Numbers
         for row_num in range(3):
             row_layout = QHBoxLayout()
-            row_layout.setSpacing(10)
+            row_layout.setSpacing(14)
             for col in range(3):
                 num = (row_num * 3) + col + 1
                 btn = self._make_keypad_btn(str(num))
@@ -106,7 +108,7 @@ class RegisterView(QWidget):
 
         # Row 4: 0, DEL, OK
         row4_layout = QHBoxLayout()
-        row4_layout.setSpacing(10)
+        row4_layout.setSpacing(14)
 
         btn_0 = self._make_keypad_btn("0")
         btn_0.clicked.connect(lambda: self._on_uid_key(0))
@@ -391,12 +393,13 @@ class RegisterView(QWidget):
         """สร้างปุ่ม keypad"""
         btn = QPushButton(text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn.setFixedHeight(50)
+        btn.setFixedHeight(80)
+        btn.setMinimumWidth(80)
         btn.setStyleSheet(f"""
             QPushButton {{
                 background-color: {color}; color: white;
-                font-weight: bold; font-size: 18px;
-                border-radius: 8px; border: none;
+                font-weight: bold; font-size: 28px;
+                border-radius: 12px; border: none;
             }}
             QPushButton:hover {{ opacity: 0.85; }}
             QPushButton:pressed {{ opacity: 0.7; }}
