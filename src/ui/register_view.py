@@ -1,19 +1,19 @@
 import hashlib
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QMessageBox, QCheckBox, QFormLayout, QGroupBox,
-    QScrollArea, QFrame,
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton,
+    QMessageBox, QGroupBox, QScrollArea,
 )
-from PySide6.QtCore import Qt, Signal, Slot
-from PySide6.QtGui import QImage, QPixmap, QFont, QDoubleValidator, QIntValidator
+from PySide6.QtCore import Qt, Signal, Slot, QTimer
+from PySide6.QtGui import QImage, QPixmap, QFont
 
 from ui.ui_config import AppConfig, t
 
 
 class RegisterView(QWidget):
-    """หน้าลงทะเบียนใบหน้า — ใช้กล้องจาก MainWindow (shared CameraService)"""
+    """หน้าลงทะเบียนใบหน้า — ป้อน UID แล้วสแกนใบหน้า"""
 
     back_clicked = Signal()
+    registration_complete = Signal(dict)  # {"user_id": ..., "name": ..., "face_vector": ...}
 
     def __init__(self, camera_service, db):
         super().__init__()
@@ -21,6 +21,8 @@ class RegisterView(QWidget):
         self.db = db
         self.current_vector = None
         self.is_capturing = False
+        self.current_uid = None
+        self.current_user = None
         self.init_ui()
 
     # ================================================================
@@ -49,112 +51,226 @@ class RegisterView(QWidget):
         lbl_title.setStyleSheet("color: white; font-size: 22px; font-weight: bold; background: transparent;")
         lbl_title.setAlignment(Qt.AlignCenter)
         h_layout.addWidget(lbl_title, 1)
-        h_layout.addSpacing(60)  # balance the back button width
+        h_layout.addSpacing(60)
 
         root.addWidget(header)
 
-        # ---- Scrollable content ----
+        # ---- Main Container ----
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setStyleSheet("QScrollArea { border: none; }")
         content = QWidget()
         layout = QVBoxLayout(content)
         layout.setContentsMargins(24, 20, 24, 20)
-        layout.setSpacing(14)
+        layout.setSpacing(20)
 
-        # -- กล้อง --
-        cam_group = QGroupBox(t("reg.cam_group"))
-        cam_group.setStyleSheet(self._group_style())
-        cam_lay = QVBoxLayout(cam_group)
+        # === Page 1: UID Input Keypad ===
+        self.page_uid = QWidget()
+        uid_layout = QVBoxLayout(self.page_uid)
+        uid_layout.setContentsMargins(0, 0, 0, 0)
+        uid_layout.setSpacing(20)
 
-        self.video_label = QLabel(t("reg.cam_wait"))
-        self.video_label.setAlignment(Qt.AlignCenter)
-        self.video_label.setMinimumHeight(280)
-        self.video_label.setStyleSheet("background: #212121; color: #aaa; border-radius: 12px; font-size: 15px;")
-        cam_lay.addWidget(self.video_label)
+        # Description
+        desc = QLabel("กรุณากรอกรหัสผู้ใช้ (UID)")
+        desc.setAlignment(Qt.AlignCenter)
+        desc.setStyleSheet("font-size: 16px; font-weight: bold; color: #333;")
+        uid_layout.addWidget(desc)
 
-        self.status_label = QLabel(t("reg.searching"))
-        self.status_label.setAlignment(Qt.AlignCenter)
-        self.status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FF9800; padding: 4px;")
-        cam_lay.addWidget(self.status_label)
-        layout.addWidget(cam_group)
+        # UID Display
+        self.uid_display = QLabel("_____")
+        self.uid_display.setAlignment(Qt.AlignCenter)
+        self.uid_display.setStyleSheet("""
+            QLabel {
+                font-size: 48px; font-weight: bold; color: #4CAF50;
+                background: #f5f5f5; border: 3px solid #e0e0e0;
+                border-radius: 10px; padding: 20px;
+                font-family: monospace;
+            }
+        """)
+        uid_layout.addWidget(self.uid_display)
 
-        # -- ฟอร์ม --
-        form_group = QGroupBox(t("reg.form_group"))
-        form_group.setStyleSheet(self._group_style())
-        form = QFormLayout(form_group)
-        form.setSpacing(10)
-        form.setLabelAlignment(Qt.AlignRight)
+        # Keypad (1-9, 0, DEL, OK)
+        keypad_layout = QVBoxLayout()
+        keypad_layout.setSpacing(10)
 
-        self.id_input = QLineEdit()
-        self.id_input.setPlaceholderText("เช่น 101, 102 ...")
-        self.id_input.setValidator(QIntValidator(1, 999999))
-        self.id_input.setStyleSheet(self._input_style())
-        form.addRow(t("reg.uid"), self.id_input)
+        # Row 1-3: Numbers
+        for row_num in range(3):
+            row_layout = QHBoxLayout()
+            row_layout.setSpacing(10)
+            for col in range(3):
+                num = (row_num * 3) + col + 1
+                btn = self._make_keypad_btn(str(num))
+                btn.clicked.connect(lambda checked, n=num: self._on_uid_key(n))
+                row_layout.addWidget(btn)
+            keypad_layout.addLayout(row_layout)
 
-        self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("ชื่อ - นามสกุล")
-        self.name_input.setStyleSheet(self._input_style())
-        form.addRow(t("reg.name"), self.name_input)
+        # Row 4: 0, DEL, OK
+        row4_layout = QHBoxLayout()
+        row4_layout.setSpacing(10)
 
-        self.balance_input = QLineEdit()
-        self.balance_input.setPlaceholderText("เช่น 500.00")
-        self.balance_input.setValidator(QDoubleValidator(0, 999999, 2))
-        self.balance_input.setStyleSheet(self._input_style())
-        form.addRow(t("reg.balance"), self.balance_input)
+        btn_0 = self._make_keypad_btn("0")
+        btn_0.clicked.connect(lambda: self._on_uid_key(0))
+        row4_layout.addWidget(btn_0)
 
-        layout.addWidget(form_group)
+        btn_del = self._make_keypad_btn("DEL", "#FF9800")
+        btn_del.clicked.connect(self._on_uid_delete)
+        row4_layout.addWidget(btn_del)
 
-        # -- PDPA --
-        pdpa_group = QGroupBox(t("reg.pdpa_group"))
-        pdpa_group.setStyleSheet(self._group_style())
-        pdpa_lay = QVBoxLayout(pdpa_group)
+        btn_ok = self._make_keypad_btn("OK", "#4CAF50")
+        btn_ok.clicked.connect(self._on_uid_submit)
+        row4_layout.addWidget(btn_ok)
 
-        pdpa_info = QLabel(t("reg.pdpa_info"))
-        pdpa_info.setWordWrap(True)
-        pdpa_info.setStyleSheet("color: #666; font-size: 13px; padding: 2px;")
-        pdpa_lay.addWidget(pdpa_info)
+        keypad_layout.addLayout(row4_layout)
+        uid_layout.addLayout(keypad_layout)
+        uid_layout.addStretch()
 
-        self.pdpa_checkbox = QCheckBox(t("reg.pdpa_check"))
-        self.pdpa_checkbox.setStyleSheet("font-size: 14px; font-weight: bold; margin-top: 4px;")
-        pdpa_lay.addWidget(self.pdpa_checkbox)
-        layout.addWidget(pdpa_group)
+        # === Page 2: Confirmation ===
+        self.page_confirm = QWidget()
+        confirm_layout = QVBoxLayout(self.page_confirm)
+        confirm_layout.setContentsMargins(0, 0, 0, 0)
+        confirm_layout.setSpacing(20)
 
-        # -- ปุ่ม --
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(14)
+        # User Info
+        info_group = QGroupBox("ยืนยันข้อมูล")
+        info_group.setStyleSheet(self._group_style())
+        info_lay = QVBoxLayout(info_group)
 
-        self.btn_save = self._make_btn(t("reg.save"), "#4CAF50")
-        self.btn_save.clicked.connect(self.save_data)
-        btn_row.addWidget(self.btn_save)
+        self.confirm_uid = QLabel()
+        self.confirm_uid.setStyleSheet("font-size: 15px; color: #333;")
+        info_lay.addWidget(self.confirm_uid)
 
-        self.btn_clear = self._make_btn(t("reg.clear"), "#FF9800")
-        self.btn_clear.clicked.connect(self.clear_form)
-        btn_row.addWidget(self.btn_clear)
+        self.confirm_name = QLabel()
+        self.confirm_name.setStyleSheet("font-size: 15px; color: #333;")
+        info_lay.addWidget(self.confirm_name)
 
-        layout.addLayout(btn_row)
-        layout.addStretch()
+        self.confirm_balance = QLabel()
+        self.confirm_balance.setStyleSheet("font-size: 15px; color: #333;")
+        info_lay.addWidget(self.confirm_balance)
+
+        confirm_layout.addWidget(info_group)
+
+        # Scanning Area
+        scan_group = QGroupBox("สแกนใบหน้า")
+        scan_group.setStyleSheet(self._group_style())
+        scan_lay = QVBoxLayout(scan_group)
+
+        self.scan_video = QLabel("กำลังเชื่อมต่อกล้อง...")
+        self.scan_video.setAlignment(Qt.AlignCenter)
+        self.scan_video.setMinimumHeight(250)
+        self.scan_video.setStyleSheet("background: #212121; color: #aaa; border-radius: 10px; font-size: 14px;")
+        scan_lay.addWidget(self.scan_video)
+
+        self.scan_status = QLabel("กำลังค้นหาใบหน้า...")
+        self.scan_status.setAlignment(Qt.AlignCenter)
+        self.scan_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #FF9800;")
+        scan_lay.addWidget(self.scan_status)
+
+        confirm_layout.addWidget(scan_group)
+        confirm_layout.addStretch()
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+
+        btn_back_confirm = self._make_btn("กลับ", "#FF9800")
+        btn_back_confirm.clicked.connect(self._on_back_to_uid)
+        btn_layout.addWidget(btn_back_confirm)
+
+        confirm_layout.addLayout(btn_layout)
+
+        # Add pages to layout
+        layout.addWidget(self.page_uid)
+        layout.addWidget(self.page_confirm)
+        self.page_confirm.hide()
 
         scroll.setWidget(content)
         root.addWidget(scroll)
 
     def update_language(self):
         self.btn_back.setText(t("reg.back"))
-        # header title
-        # cam / form labels
-        self.video_label.setText(t("reg.cam_wait"))
-        self.status_label.setText(t("reg.searching"))
-        # form labels are created using t() initially so they will show correctly
 
     # ================================================================
-    # Camera connect / disconnect
+    # UID Input Handlers
+    # ================================================================
+    def _on_uid_key(self, num):
+        """เพิ่มตัวเลขเข้า UID"""
+        if len(self.current_uid) < 6:
+            self.current_uid += str(num)
+            self._update_uid_display()
+
+    def _on_uid_delete(self):
+        """ลบตัวเลขสุดท้าย"""
+        if len(self.current_uid) > 0:
+            self.current_uid = self.current_uid[:-1]
+            self._update_uid_display()
+
+    def _update_uid_display(self):
+        """อัปเดตการแสดง UID"""
+        if len(self.current_uid) == 0:
+            self.uid_display.setText("_____")
+        else:
+            self.uid_display.setText(self.current_uid)
+
+    def _on_uid_submit(self):
+        """ตรวจสอบ UID จาก DB"""
+        if len(self.current_uid) == 0:
+            QMessageBox.warning(self, "ข้อมูลไม่ครบ", "กรุณากรอก UID")
+            return
+
+        try:
+            # ค้นหา user ด้วย UID
+            user = self.db.get_user_by_id(self.current_uid)
+            if not user:
+                QMessageBox.warning(self, "ไม่พบ UID", f"ไม่พบ UID: {self.current_uid} ในระบบ")
+                self._clear_uid_input()
+                return
+
+            # เจอแล้ว - แสดง confirmation page
+            self.current_user = user
+            self._show_confirmation_page()
+
+        except Exception as e:
+            QMessageBox.critical(self, "ข้อผิดพลาด", str(e))
+
+    def _clear_uid_input(self):
+        """ล้าง UID input"""
+        self.current_uid = ""
+        self._update_uid_display()
+
+    # ================================================================
+    # Confirmation Page
+    # ================================================================
+    def _show_confirmation_page(self):
+        """แสดง confirmation page กับ camera scan"""
+        # ซ่อน UID page แสดง confirm page
+        self.page_uid.hide()
+        self.page_confirm.show()
+
+        # แสดงข้อมูล
+        self.confirm_uid.setText(f"รหัส (UID): {self.current_user.get('user_id', 'N/A')}")
+        self.confirm_name.setText(f"ชื่อ: {self.current_user.get('name', 'N/A')}")
+        self.confirm_balance.setText(f"ยอดเงิน: {self.current_user.get('balance', 0):.2f} บาท")
+
+        # เริ่มสแกนใบหน้า
+        self.start_capture()
+
+    def _on_back_to_uid(self):
+        """กลับไปหน้า UID input"""
+        self.stop_capture()
+        self.page_confirm.hide()
+        self.page_uid.show()
+        self._clear_uid_input()
+
+    # ================================================================
+    # Camera Capture & Face Detection
     # ================================================================
     def start_capture(self):
-        """เรียกตอนเข้าหน้านี้"""
+        """เรียกเมื่อเข้าหน้า confirmation"""
         self.is_capturing = True
         self.current_vector = None
-        self.status_label.setText(t("reg.searching"))
-        self.status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FF9800; padding: 4px;")
+        self.scan_status.setText("กำลังค้นหาใบหน้า...")
+        self.scan_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #FF9800;")
+
         try:
             self.camera.frame_received.connect(self.update_frame)
             self.camera.face_detected.connect(self.update_vector)
@@ -162,7 +278,7 @@ class RegisterView(QWidget):
             pass
 
     def stop_capture(self):
-        """เรียกตอนออกจากหน้านี้"""
+        """เรียกเมื่อออกจากหน้า"""
         self.is_capturing = False
         try:
             self.camera.frame_received.disconnect(self.update_frame)
@@ -175,82 +291,83 @@ class RegisterView(QWidget):
 
     @Slot(QImage)
     def update_frame(self, image):
-        if not self.is_capturing:
+        if not self.is_capturing or not self.page_confirm.isVisible():
             return
         pixmap = QPixmap.fromImage(image)
-        self.video_label.setPixmap(
-            pixmap.scaled(self.video_label.width(), self.video_label.height(),
+        self.scan_video.setPixmap(
+            pixmap.scaled(self.scan_video.width(), self.scan_video.height(),
                           Qt.KeepAspectRatio, Qt.SmoothTransformation)
         )
 
     @Slot(list)
     def update_vector(self, vector):
-        if not self.is_capturing:
+        if not self.is_capturing or not self.page_confirm.isVisible():
             return
+
         self.current_vector = vector
-        self.status_label.setText("✅  ตรวจพบใบหน้าแล้ว — พร้อมบันทึก")
-        self.status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #2E7D32; padding: 4px;")
+        self.scan_status.setText("ตรวจพบใบหน้า ✓ กำลังบันทึก...")
+        self.scan_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #2E7D32;")
 
-    # ================================================================
-    # Save
-    # ================================================================
-    @staticmethod
-    def _hash_vector(vector) -> str:
-        raw = ",".join(f"{v:.6f}" for v in vector)
-        return hashlib.sha256(raw.encode()).hexdigest()
+        # บันทึกลง DB
+        self._save_registration()
 
-    def save_data(self):
-        uid = self.id_input.text().strip()
-        name = self.name_input.text().strip()
-        balance = self.balance_input.text().strip()
-
-        if not uid:
-            QMessageBox.warning(self, "ข้อมูลไม่ครบ", "กรุณากรอกรหัสผู้ใช้")
-            self.id_input.setFocus(); return
-        if not name:
-            QMessageBox.warning(self, "ข้อมูลไม่ครบ", "กรุณากรอกชื่อ-นามสกุล")
-            self.name_input.setFocus(); return
-        if not balance:
-            QMessageBox.warning(self, "ข้อมูลไม่ครบ", "กรุณากรอกยอดเงินเริ่มต้น")
-            self.balance_input.setFocus(); return
-        if not self.pdpa_checkbox.isChecked():
-            QMessageBox.warning(self, "ต้องยินยอม PDPA", "กรุณายินยอมให้จัดเก็บข้อมูลใบหน้าก่อน")
-            return
-        if self.current_vector is None:
-            QMessageBox.warning(self, "ไม่พบใบหน้า", "กล้องยังไม่พบใบหน้า กรุณารอสถานะเป็นสีเขียว")
-            return
-
-        reply = QMessageBox.question(
-            self, "ยืนยันการลงทะเบียน",
-            f"ลงทะเบียน \"{name}\" (ID: {uid}) ใช่หรือไม่?",
-            QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
-        )
-        if reply != QMessageBox.Yes:
-            return
-
+    def _save_registration(self):
+        """บันทึกข้อมูลลงฐานข้อมูล"""
         try:
-            vec_hash = self._hash_vector(self.current_vector)
-            ok = self.db.register_user(uid, name, balance, self.current_vector, True)
-            if ok:
-                print(f"🔐 Face vector hash: {vec_hash[:16]}...")
-                QMessageBox.information(self, "สำเร็จ", f"ลงทะเบียน \"{name}\" (ID: {uid}) เรียบร้อย!")
-                self.clear_form()
-            else:
-                QMessageBox.critical(self, "ผิดพลาด", "บันทึกลงฐานข้อมูลไม่สำเร็จ")
-        except Exception as e:
-            QMessageBox.critical(self, "ผิดพลาด", str(e))
+            if not self.current_user or not self.current_vector:
+                return
 
-    def clear_form(self):
-        self.id_input.clear()
-        self.name_input.clear()
-        self.balance_input.clear()
-        self.pdpa_checkbox.setChecked(False)
-        self.current_vector = None
-        self.status_label.setText("🔍  กำลังค้นหาใบหน้า...")
-        self.status_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FF9800; padding: 4px;")
+            user_id = self.current_user.get("user_id")
+            name = self.current_user.get("name")
+            balance = self.current_user.get("balance", 0)
+
+            # อัพเดต user document ด้วย face vector
+            ok = self.db.register_user(
+                user_id, name, balance,
+                self.current_vector,
+                pdpa_consent=True, role="user"
+            )
+
+            if ok:
+                self.scan_status.setText("ลงทะเบียนสำเร็จ ✓")
+                self.scan_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #2E7D32;")
+
+                # ส่ง signal
+                registration_data = {
+                    "user_id": user_id,
+                    "name": name,
+                    "balance": balance,
+                    "face_vector": self.current_vector
+                }
+                self.registration_complete.emit(registration_data)
+
+                # หน่วงเวลา 2 วินาที แล้วกลับ HOME
+                QTimer.singleShot(2000, self._reset_to_home)
+            else:
+                self.scan_status.setText("บันทึกล้มเหลว ❌")
+                self.scan_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #d32f2f;")
+                QMessageBox.critical(self, "ข้อผิดพลาด", "บันทึกลงฐานข้อมูลไม่สำเร็จ")
+
+        except Exception as e:
+            self.scan_status.setText(f"เกิดข้อผิดพลาด ❌")
+            self.scan_status.setStyleSheet("font-size: 14px; font-weight: bold; color: #d32f2f;")
+            QMessageBox.critical(self, "ข้อผิดพลาด", str(e))
+
+    def _reset_to_home(self):
+        """รีเซ็ตกลับหน้า UID input และออก"""
+        self.stop_capture()
+        self._clear_uid_input()
+        self.page_confirm.hide()
+        self.page_uid.show()
+        self.current_user = None
+        self.back_clicked.emit()
 
     def _on_back(self):
+        """กลับหน้าแรก"""
         self.stop_capture()
+        self._clear_uid_input()
+        self.page_confirm.hide()
+        self.page_uid.show()
         self.back_clicked.emit()
 
     # ================================================================
@@ -270,17 +387,25 @@ class RegisterView(QWidget):
         """
 
     @staticmethod
-    def _input_style():
-        return """
-            QLineEdit {
-                border: 2px solid #e0e0e0; border-radius: 8px;
-                padding: 10px 14px; font-size: 15px; background: #fafafa;
-            }
-            QLineEdit:focus { border-color: #4CAF50; background: white; }
-        """
+    def _make_keypad_btn(text, color="#4CAF50"):
+        """สร้างปุ่ม keypad"""
+        btn = QPushButton(text)
+        btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn.setFixedHeight(50)
+        btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: {color}; color: white;
+                font-weight: bold; font-size: 18px;
+                border-radius: 8px; border: none;
+            }}
+            QPushButton:hover {{ opacity: 0.85; }}
+            QPushButton:pressed {{ opacity: 0.7; }}
+        """)
+        return btn
 
     @staticmethod
     def _make_btn(text, color):
+        """สร้างปุ่มทั่วไป"""
         btn = QPushButton(text)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
         btn.setFixedHeight(48)
@@ -291,6 +416,6 @@ class RegisterView(QWidget):
                 border-radius: 10px; border: none; padding: 8px 16px;
             }}
             QPushButton:hover {{ opacity: 0.9; }}
-            QPushButton:disabled {{ background-color: #bdbdbd; }}
         """)
         return btn
+
