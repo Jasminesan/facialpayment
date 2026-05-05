@@ -87,6 +87,7 @@ class DatabaseHandler:
                 "balance": float(balance),
                 "face_vector": (np.array(face_vector).tolist() if hasattr(face_vector, 'tolist') else list(face_vector)),
                 "is_active": True,
+                "face_enrolled": True,
                 "pdpa_consent": bool(pdpa_consent),
                 "role": role,
             }
