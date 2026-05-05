@@ -75,7 +75,13 @@ class DatabaseHandler:
 
         try:
             doc_id = str(user_id).strip()
-            data = {
+            user_ref = self.db.collection("users").document(doc_id)
+            
+            # ดึงข้อมูล existing ก่อน (ถ้ามี)
+            existing_doc = user_ref.get()
+            
+            # เตรียมข้อมูลที่จะอัพเดต (รักษา fields เดิมไว้)
+            update_data = {
                 "user_id": doc_id,
                 "name": name,
                 "balance": float(balance),
@@ -83,13 +89,17 @@ class DatabaseHandler:
                 "is_active": True,
                 "pdpa_consent": bool(pdpa_consent),
                 "role": role,
-                "created_at": firestore.SERVER_TIMESTAMP
             }
-
-            # เขียนทับหรือสร้างใหม่
-            self.db.collection("users").document(doc_id).set(data)
-            print(f"User {doc_id} registered/updated.")
+            
+            # ถ้าเป็นครั้งแรก ให้เพิ่ม created_at
+            if not existing_doc.exists:
+                update_data["created_at"] = firestore.SERVER_TIMESTAMP
+            
+            # ใช้ update ไม่ใช่ set เพื่อรักษา fields เดิม (เช่น password)
+            user_ref.update(update_data)
+            print(f"User {doc_id} registered/updated successfully.")
             return True
+            
         except Exception as e:
             print(f"Register User Error: {e}")
             return False
