@@ -104,11 +104,11 @@ class ConfirmView(QWidget):
 
     def set_user_data(self, user_id, name, balance, amount): 
         self.current_user_id = user_id 
-        self.payment_amount = amount   
+        self.payment_amount = amount*10   
         
         self.lbl_name.setText(name)
         self.lbl_total.setText(f"{balance:,.2f}")
-        self.lbl_pay.setText(f"{amount:,.2f}")
+        self.lbl_pay.setText(f"{self.payment_amount:,.2f}")
         
         self.btn_ok.setText(t("confirm.ok"))
         self.btn_ok.setEnabled(True)
